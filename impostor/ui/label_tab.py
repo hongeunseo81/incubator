@@ -13,7 +13,8 @@ from impostor.ui.canvas import ImageCanvas
 LABEL_TEXT = {Label.NORMAL: "정상", Label.INTERFERENCE: "간섭", Label.UNLABELED: "미분류"}
 LABEL_COLOR = {Label.NORMAL: QColor(60, 160, 60), Label.INTERFERENCE: QColor(210, 60, 60),
                Label.UNLABELED: QColor(140, 140, 140)}
-PIN_TEXT = {Pin.NONE: "고정 없음", Pin.TRAIN: "항상 학습", Pin.EVAL: "항상 평가"}
+PIN_TEXT = {Pin.NONE: "자동", Pin.TRAIN: "학습", Pin.EVAL: "시험"}
+PIN_HELP = "정상 사진을 학습/시험 중 어디에 쓸지. 보통은 자동 (예: 손글씨 판은 학습, 헷갈리는 정상은 시험)"
 FILTERS = ["전체", "정상", "간섭", "미분류", "파일 없음"]
 KEY_LABEL = {Qt.Key_N: Label.NORMAL, Qt.Key_I: Label.INTERFERENCE, Qt.Key_U: Label.UNLABELED}
 
@@ -53,9 +54,9 @@ class LabelTab(QWidget):
             b.clicked.connect(lambda _=False, l=lab: self.set_label(l))
             lb.addWidget(b)
             self.label_buttons[lab] = b
-        # 학습/시험 직접 지정 — 헷갈려서 화면에서는 숨긴다 (저장된 지정값은 그대로 적용됨)
-        self.pin_box = pin_box = QGroupBox("분할 고정")
-        pin_box.hide()
+        # 정상 사진을 학습/시험 중 어디에 쓸지 직접 지정 (보통은 자동)
+        self.pin_box = pin_box = QGroupBox("용도")
+        pin_box.setToolTip(PIN_HELP)
         pb = QVBoxLayout(pin_box)
         self.pin_group = QButtonGroup(self)
         self.pin_buttons = {}

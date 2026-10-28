@@ -9,10 +9,10 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel
                                QPushButton, QSplitter, QVBoxLayout, QWidget)
 
 from impostor.align import Aligner, describe, shift_mask
-from impostor.dataset import Dataset, Item, Label
+from impostor.dataset import Dataset, Item, Label, Pin
 from impostor.imageio import imread, load_mask
 from impostor.ui.canvas import ImageCanvas
-from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT
+from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, PIN_HELP, PIN_TEXT
 
 FILTERS = ["전체", "정상", "간섭", "미분류"]
 
@@ -59,6 +59,17 @@ class ThumbGrid(QWidget):
         self.rest_normal_btn.setToolTip("간섭만 골라 표시한 뒤 누르면 나머지가 모두 정상이 됩니다")
         self.rest_normal_btn.clicked.connect(self.rest_to_normal)
         top.addWidget(self.rest_normal_btn)
+        top.addSpacing(16)
+        usage = QLabel("용도")
+        usage.setToolTip(PIN_HELP)
+        top.addWidget(usage)
+        self.pin_buttons: dict[Pin, QPushButton] = {}
+        for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL):
+            b = QPushButton(PIN_TEXT[p])
+            b.setToolTip(PIN_HELP)
+            b.clicked.connect(lambda _=False, pp=p: self.apply_pin(pp))
+            top.addWidget(b)
+            self.pin_buttons[p] = b
 
         self.view = QListWidget()
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -125,7 +136,8 @@ class ThumbGrid(QWidget):
         it = self.shown[row]
         w = self.view.item(row)
         miss = "  [파일 없음]" if not self.ds.exists(it) else ""
-        w.setText(f"[{LABEL_TEXT[it.label]}] {it.group}{miss}")
+        usage = f"·{PIN_TEXT[it.pin]}" if it.pin is not Pin.NONE else ""
+        w.setText(f"[{LABEL_TEXT[it.label]}{usage}] {it.group}{miss}")
         w.setForeground(QBrush(LABEL_COLOR[it.label]))
 
     def _update_counts(self) -> None:
@@ -174,6 +186,15 @@ class ThumbGrid(QWidget):
             self._update_counts()
         else:
             self._refill()
+        self.changed.emit()
+
+    def apply_pin(self, pin: Pin) -> None:
+        rows = sorted({self.view.row(w) for w in self.view.selectedItems()})
+        if not rows:
+            return
+        for r in rows:
+            self.shown[r].pin = pin
+            self._decorate(r)
         self.changed.emit()
 
     def rest_to_normal(self) -> None:

@@ -286,5 +286,6 @@ def test_align_toggle_disabled_without_reference(qtbot, small_ds):
     assert not s.align_check.isEnabled() and not s.align_check.isChecked()
 
 
-def test_pin_group_hidden(qtbot, label_tab):
-    assert label_tab.pin_box.isHidden()
+def test_pin_group_visible_with_simple_names(qtbot, label_tab):
+    assert not label_tab.pin_box.isHidden() and label_tab.pin_box.title() == "용도"
+    assert [label_tab.pin_buttons[p].text() for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL)] == ["자동", "학습", "시험"]

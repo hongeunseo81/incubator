@@ -107,3 +107,16 @@ def test_preview_outline_follows_alignment(qtbot, tmp_path):
     rect = g.preview.mask_rect()
     assert abs(rect.left() - (224 // 4 + dx)) <= 2 and abs(rect.top() - (224 // 4 + dy)) <= 2
     assert "위치 보정" in g.shift_label.text()
+
+
+def test_list_sets_usage_for_selection(qtbot, grid):
+    from impostor.dataset import Pin
+    g, ds = grid
+    select(g, [0, 1])
+    g.buttons[Label.NORMAL].click()
+    select(g, [1])
+    g.pin_buttons[Pin.TRAIN].click()
+    assert ds.items[1].pin is Pin.TRAIN and ds.items[0].pin is Pin.NONE
+    assert "학습" in g.view.item(1).text()
+    g.pin_buttons[Pin.NONE].click()
+    assert ds.items[1].pin is Pin.NONE and "학습" not in g.view.item(1).text()
