@@ -48,15 +48,11 @@ class ThresholdRow(QWidget):
         self.value_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
                                        f"font-family: {theme.MONO}")
         self.auto_btn = QPushButton("자동")
-        low = QLabel("← 더 많이 잡음")
-        high = QLabel("오검출 줄임 →")
-        for lab in (low, high):
-            lab.setStyleSheet(f"color: {theme.MUTED}")
         h = QHBoxLayout(self)
         h.setContentsMargins(0, 0, 0, 0)
-        for w in (low, self.slider, high, self.value_label, self.auto_btn):
+        for w in (self.slider, self.value_label, self.auto_btn):
             h.addWidget(w)
-        h.setStretch(1, 1)
+        h.setStretch(0, 1)
         self.slider.valueChanged.connect(self._slid)
         self.auto_btn.clicked.connect(lambda: self.set_value(self.auto))
         self.reset()
@@ -67,7 +63,7 @@ class ThresholdRow(QWidget):
         self.slider.blockSignals(True)
         self.slider.setValue(STEPS // 2)
         self.slider.blockSignals(False)
-        self.value_label.setText("실행하면 임계값이 정해집니다")
+        self.value_label.setText("—")
         self.value_label.setStyleSheet(f"font-size: 14px; color: {theme.MUTED}")
 
     def configure(self, lo: float, hi: float, auto: float) -> None:
@@ -173,11 +169,11 @@ class ResultView(QWidget):
         rv.addLayout(top)
         rv.addWidget(self.header)
         rv.addWidget(self.table)
-        thr_box, tv = section("■ 판정 기준 (임계값 이상이면 NG)")
+        thr_box, tv = section("■ 임계값")
         tv.addLayout(self.slider_box)
         img_box, iv = section("■ 이미지")
         iv.addWidget(bottom, 1)
-        self.sections = {"실행": run_box, "판정 기준": thr_box, "이미지": img_box}
+        self.sections = {"실행": run_box, "임계값": thr_box, "이미지": img_box}
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)

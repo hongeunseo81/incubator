@@ -193,15 +193,18 @@ def test_no_target_on_clear(qtbot, make_view):
 def test_result_sections_and_big_slider(qtbot, make_view):
     v, ds = make_view(FakeAlgo)
     run_and_wait(qtbot, v)
-    assert list(v.sections) == ["실행", "판정 기준", "이미지"]
-    assert v.sections["판정 기준"].isAncestorOf(v.slider)
+    assert list(v.sections) == ["실행", "임계값", "이미지"]
+    assert v.sections["임계값"].isAncestorOf(v.slider)
+    from PySide6.QtWidgets import QLabel
+    texts = " ".join(l.text() for l in v.sections["임계값"].findChildren(QLabel))
+    assert "더 많이 잡음" not in texts and "오검출 줄임" not in texts and "이상이면" not in texts
     assert v.slider.slider.minimumHeight() >= 28
 
 
 def test_slider_always_visible_and_locked_until_run(qtbot, make_view):
     v, _ = make_view(FakeAlgo)
     assert v.slider is not None and not v.slider.isEnabled()
-    assert "실행하면" in v.slider.value_label.text()
+    assert v.slider.value_label.text() == "—"
     run_and_wait(qtbot, v)
     assert v.slider.isEnabled()
     v.clear()

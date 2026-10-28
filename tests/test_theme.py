@@ -20,3 +20,7 @@ def test_target_reticle_locked_and_clear(qtbot):
     assert c.target_color().name() == theme.ACCENT.lower()
     c.set_target(None, locked=False)
     assert not c.target_items
+
+
+def test_selected_item_clearly_marked():
+    assert "QListWidget::item:selected" in theme.STYLESHEET and "QTableWidget::item:selected" in theme.STYLESHEET

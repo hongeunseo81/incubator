@@ -24,6 +24,11 @@ QLineEdit, QComboBox, QSpinBox, QListWidget, QTableWidget {{
 }}
 QHeaderView::section {{ background: {PANEL}; color: {MUTED}; border: 0; border-bottom: 1px solid {GRID}; padding: 4px; }}
 QTableWidget {{ gridline-color: {GRID}; }}
+QListWidget::item {{ padding: 3px 4px; border-left: 4px solid transparent; }}
+QListWidget::item:selected, QTableWidget::item:selected {{
+    background: #1f6f7a; color: #ffffff; border-left: 4px solid {ACCENT};
+}}
+QListWidget::item:hover {{ background: #15304a; }}
 QPushButton {{
     background: #16253b; border: 1px solid {GRID}; border-radius: 4px; padding: 5px 12px; color: {TEXT};
 }}
