@@ -30,9 +30,9 @@ FP_BG = QColor("#4a3618")        # 오검출 — 어두운 주황
 class ThresholdRow(QWidget):
     changed = Signal(float)
 
-    def __init__(self, lo: float, hi: float, auto: float):
+    def __init__(self):
         super().__init__()
-        self.lo, self.hi, self.auto, self.value = lo, hi, auto, auto
+        self.lo, self.hi, self.auto, self.value = 0.0, 1.0, 0.0, 0.0
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, STEPS)
         self.slider.setMinimumHeight(32)
@@ -40,7 +40,9 @@ class ThresholdRow(QWidget):
             f"QSlider::groove:horizontal {{ height: 10px; border-radius: 5px; "
             f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {theme.ACCENT}, stop:1 {theme.ALERT}); }} "
             f"QSlider::handle:horizontal {{ background: white; border: 3px solid {theme.ALERT}; "
-            f"width: 22px; margin: -9px 0; border-radius: 13px; }}")
+            f"width: 22px; margin: -9px 0; border-radius: 13px; }} "
+            f"QSlider::groove:horizontal:disabled {{ background: {theme.GRID}; }} "      # 결과 전 잠김 → 회색
+            f"QSlider::handle:horizontal:disabled {{ background: #2a3a4e; border-color: #3a4a5e; }}")
         self.value_label = QLabel()
         self.value_label.setMinimumWidth(90)
         self.value_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
@@ -57,6 +59,22 @@ class ThresholdRow(QWidget):
         h.setStretch(1, 1)
         self.slider.valueChanged.connect(self._slid)
         self.auto_btn.clicked.connect(lambda: self.set_value(self.auto))
+        self.reset()
+
+    def reset(self) -> None:
+        """결과가 없을 때: 잠그고 안내만 보인다."""
+        self.setEnabled(False)
+        self.slider.blockSignals(True)
+        self.slider.setValue(STEPS // 2)
+        self.slider.blockSignals(False)
+        self.value_label.setText("실행하면 임계값이 정해집니다")
+        self.value_label.setStyleSheet(f"font-size: 14px; color: {theme.MUTED}")
+
+    def configure(self, lo: float, hi: float, auto: float) -> None:
+        self.lo, self.hi, self.auto = lo, hi, auto
+        self.value_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
+                                       f"font-family: {theme.MONO}")
+        self.setEnabled(True)
         self.set_value(auto)
 
     def _slid(self, pos: int) -> None:
@@ -88,7 +106,8 @@ class ResultView(QWidget):
         self.res: AlgoResult | None = None
         self.threshold = 0.0
         self.rows: list[tuple[Item, Label]] = []
-        self.slider: ThresholdRow | None = None
+        self.slider = ThresholdRow()           # 항상 보인다 — 결과 전엔 잠김
+        self.slider.changed.connect(self._recompute)
         self.views: dict[str, ImageCanvas] = {}
         self.worker: RunWorker | None = None
         self.mask = None
@@ -100,9 +119,16 @@ class ResultView(QWidget):
         self.banner.setFont(theme.mono(12, bold=True))
         self.banner.setAlignment(Qt.AlignCenter)
         self.banner.setFixedHeight(28)
-        self.run_btn = QPushButton("실행")
+        self.run_btn = QPushButton("▶  실행")
+        self.run_btn.setMinimumSize(160, 44)
+        self.run_btn.setCursor(Qt.PointingHandCursor)
+        self.run_btn.setStyleSheet(
+            f"QPushButton {{ background: {theme.ACCENT}; color: {theme.BG}; font-size: 18px; font-weight: bold; "
+            f"border: 0; border-radius: 8px; }} QPushButton:hover {{ background: #6fe3d8; }} "
+            f"QPushButton:disabled {{ background: #1d3a44; color: #3f6470; }}")
         self.run_btn.clicked.connect(self.run)
-        self.stop_btn = QPushButton("중단")
+        self.stop_btn = QPushButton("■  중단")
+        self.stop_btn.setMinimumSize(110, 44)
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop)
         self.bar = QProgressBar()
@@ -119,6 +145,7 @@ class ResultView(QWidget):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setMaximumHeight(80)
         self.slider_box = QVBoxLayout()
+        self.slider_box.addWidget(self.slider)
 
         self.images = QTableWidget(0, 3)
         self.images.setHorizontalHeaderLabels(["이미지", "라벨", "점수"])
@@ -175,9 +202,7 @@ class ResultView(QWidget):
         self.snap = self.res = None
         self.rows = []
         self.table.setRowCount(0)
-        if self.slider is not None:
-            self.slider.setParent(None)
-            self.slider = None
+        self.slider.reset()
         self.images.setRowCount(0)
         self._set_views([])
         self.stage.setText("")
@@ -240,9 +265,9 @@ class ResultView(QWidget):
         interf, thresh, test = eval_items(self.snap.ds, self.snap.split)
         values = list(res.scores.values())
         auto = auto_threshold(res.scores[i.path] for i in thresh)
-        self.slider = ThresholdRow(min(values), max(max(values), auto), auto)
-        self.slider.changed.connect(self._recompute)
-        self.slider_box.addWidget(self.slider)
+        self.slider.blockSignals(True)            # 목록·화면을 다 준비한 뒤 한 번만 다시 계산
+        self.slider.configure(min(values), max(max(values), auto), auto)
+        self.slider.blockSignals(False)
         rows = [(i, Label.INTERFERENCE) for i in interf] + [(i, Label.NORMAL) for i in test]
         self.rows = sorted(rows, key=lambda r: -res.scores[r[0].path])
         self._fill_images()
@@ -251,6 +276,8 @@ class ResultView(QWidget):
 
     # ---- 지표 ----
     def _recompute(self, threshold: float) -> None:
+        if self.res is None or self.res.skipped:
+            return
         self.threshold = threshold
         res = self.res
         interf = [i for i, lab in self.rows if lab is Label.INTERFERENCE]

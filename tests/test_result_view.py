@@ -130,7 +130,7 @@ def test_clear(qtbot, make_view):
     v, _ = make_view(FakeAlgo)
     run_and_wait(qtbot, v)
     v.clear()
-    assert v.table.rowCount() == 0 and v.images.rowCount() == 0 and v.slider is None
+    assert v.table.rowCount() == 0 and v.images.rowCount() == 0 and not v.slider.isEnabled()
 
 
 def test_run_split_error_shown(qtbot, monkeypatch, tmp_path):
@@ -196,3 +196,18 @@ def test_result_sections_and_big_slider(qtbot, make_view):
     assert list(v.sections) == ["실행", "판정 기준", "이미지"]
     assert v.sections["판정 기준"].isAncestorOf(v.slider)
     assert v.slider.slider.minimumHeight() >= 28
+
+
+def test_slider_always_visible_and_locked_until_run(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    assert v.slider is not None and not v.slider.isEnabled()
+    assert "실행하면" in v.slider.value_label.text()
+    run_and_wait(qtbot, v)
+    assert v.slider.isEnabled()
+    v.clear()
+    assert v.slider is not None and not v.slider.isEnabled()
+
+
+def test_run_button_prominent(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    assert "실행" in v.run_btn.text() and v.run_btn.minimumHeight() >= 40 and v.run_btn.minimumWidth() >= 140
