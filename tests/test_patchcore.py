@@ -31,3 +31,19 @@ def test_patchcore_cancel(tmp_path):
     ds = make_synthetic(tmp_path)
     with pytest.raises(Cancelled):
         PatchCore().run(ds, split_normals(ds), noop, lambda: True)
+
+
+def test_patchcore_aligns_mask_per_image(tmp_path):
+    from tests.conftest import make_shifted
+    ds, truth = make_shifted(tmp_path)
+    split = split_normals(ds)
+    interf, thresh, test = eval_items(ds, split)
+    r = PatchCore().run(ds, split, noop, lambda: False)
+    assert len(r.shifts) == len(interf + thresh + test)
+    for p, (dx, dy) in truth.items():
+        if p in r.shifts:
+            sx, sy, _ = r.shifts[p]
+            assert abs(sx - dx) <= 1.5 and abs(sy - dy) <= 1.5
+    normal_max = max(r.scores[i.path] for i in thresh + test)
+    assert all(r.scores[i.path] > normal_max for i in interf)
+    assert all(location_hit(r.peaks[i.path], i.boxes) for i in interf)

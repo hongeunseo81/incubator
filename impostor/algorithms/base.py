@@ -23,6 +23,7 @@ class AlgoResult:
     maps: dict[str, np.ndarray] = field(default_factory=dict)          # 경로 → float16 이상 지도
     pred_boxes: dict[str, list[tuple[int, int, int, int, float]]] = field(default_factory=dict)
     peaks: dict[str, tuple[int, int] | None] = field(default_factory=dict)
+    shifts: dict[str, tuple[float, float, float]] = field(default_factory=dict)   # 경로 → (dx, dy, 신뢰도)
     sec_per_image: float = 0.0
     skipped: str | None = None                                          # 실행하지 않은 사유
 

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPu
 
 from impostor.algorithms import REGISTRY
 from impostor.algorithms.base import AlgoResult, eval_items
+from impostor.align import describe, shift_mask
 from impostor.dataset import Dataset, Item, Label
 from impostor.imageio import imread, load_mask
 from impostor.metrics import auto_threshold, evaluate
@@ -105,8 +106,13 @@ class ResultView(QWidget):
         self.images.setEditTriggers(QTableWidget.NoEditTriggers)
         self.images.itemSelectionChanged.connect(self._show_selected)
         self.view_row = QHBoxLayout()
+        self.shift_label = QLabel()
+        self.shift_label.setStyleSheet("color: gray")
         views = QWidget()
-        views.setLayout(self.view_row)
+        vv = QVBoxLayout(views)
+        vv.setContentsMargins(0, 0, 0, 0)
+        vv.addLayout(self.view_row, 1)
+        vv.addWidget(self.shift_label)
         bottom = QSplitter()
         bottom.addWidget(self.images)
         bottom.addWidget(views)
@@ -265,9 +271,12 @@ class ResultView(QWidget):
                 c.clear_all(str(e))
             return
         vals = np.array(list(self.res.scores.values()))
+        s = self.res.shifts.get(it.path)
+        mask = shift_mask(self.mask, s[0], s[1]) if (s is not None and self.mask is not None) else self.mask
+        self.shift_label.setText(describe(s))
         for title, canvas in self.views.items():
             canvas.set_image(img)
-            canvas.set_mask_outline(self.mask)
+            canvas.set_mask_outline(mask)
             if title != "원본":
                 if it.path in self.res.maps:
                     canvas.set_heatmap(self.res.maps[it.path], float(vals.min()), float(vals.max()))

@@ -94,3 +94,16 @@ def test_shortcuts_apply_to_selection(qtbot, grid):
     qtbot.keyClick(g.view, Qt.Key_U)
     assert ds.items[1].label is Label.UNLABELED
     assert "(I)" in g.buttons[Label.INTERFERENCE].text()
+
+
+def test_preview_outline_follows_alignment(qtbot, tmp_path):
+    from tests.conftest import make_shifted
+    ds, truth = make_shifted(tmp_path)
+    g = ThumbGrid()
+    qtbot.addWidget(g)
+    g.set_dataset(ds)
+    g.view.setCurrentRow(0)
+    dx, dy = truth[ds.items[0].path]
+    rect = g.preview.mask_rect()
+    assert abs(rect.left() - (224 // 4 + dx)) <= 2 and abs(rect.top() - (224 // 4 + dy)) <= 2
+    assert "위치 보정" in g.shift_label.text()

@@ -55,3 +55,14 @@ def test_yolo_rejects_size_mismatch(tmp_path):
     write_png(Path(boxed[0].path), np.zeros((100, 100, 3), np.uint8))
     with pytest.raises(ValueError, match="마스크와 크기가 다른"):
         Yolo().run(ds, split_normals(ds), noop, never)
+
+
+@pytest.mark.slow
+def test_yolo_records_shifts_when_master_available(tmp_path):
+    from tests.conftest import make_shifted
+    ds, truth = make_shifted(tmp_path, n_normal=10, n_interf=3)
+    split = split_normals(ds)
+    r = Yolo(dict(FAST, epochs=2)).run(ds, split, noop, never)
+    assert set(r.shifts) == set(r.scores)
+    p = next(iter(r.shifts))
+    assert abs(r.shifts[p][0] - truth[p][0]) <= 1.5

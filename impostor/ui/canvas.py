@@ -63,6 +63,10 @@ class ImageCanvas(QGraphicsView):
         if first:
             self.fit()
 
+    def mask_rect(self):
+        """그려진 마스크 윤곽의 범위 (없으면 빈 사각형)."""
+        return self._mask.path().boundingRect() if self._mask is not None else QRectF()
+
     def has_image(self) -> bool:
         return self._img is not None
 

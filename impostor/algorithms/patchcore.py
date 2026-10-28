@@ -13,6 +13,7 @@ import torch.nn.functional as F
 import torchvision
 
 from impostor.algorithms.params import defaults
+from impostor.align import Aligner, shift_box, shift_mask
 from impostor.algorithms.base import AlgoResult, Progress, ShouldStop, check_stop, eval_items
 from impostor.dataset import Dataset
 from impostor.imageio import imread, load_mask
@@ -108,6 +109,14 @@ class PatchCore:
         check_stop(should_stop)
         mask = load_mask(ds.mask_path)
         box, eroded = mask_geometry(mask, self.params["erode"])
+        aligner = Aligner.for_dataset(ds)       # 마스터 이미지가 있으면 이미지마다 위치를 맞춘다
+
+        def placed(img):
+            """이 이미지에 맞게 옮긴 (특징 추출 영역, 점수 마스크, 측정값)"""
+            if aligner is None:
+                return box, eroded, None
+            s = aligner.shift(img)
+            return shift_box(box, s[0], s[1], img.shape), shift_mask(eroded, s[0], s[1]), s
         progress("PatchCore 모델 준비", 0.0)
         model = Extractor().to(self.dev).eval()
 
@@ -115,7 +124,8 @@ class PatchCore:
         for k, it in enumerate(split.train):
             check_stop(should_stop)
             progress("PatchCore 정상 특징 수집", 0.5 * k / len(split.train))
-            f = model(self._prep(self._read(it.path, mask), box))[0]
+            img = self._read(it.path, mask)
+            f = model(self._prep(img, placed(img)[0]))[0]
             f = f.permute(1, 2, 0).reshape(-1, f.shape[0])
             feats.append(f[torch.randperm(len(f), device=self.dev)[:BANK_PER_IMAGE]])
         progress("PatchCore 메모리 축약", 0.5)
@@ -130,8 +140,11 @@ class PatchCore:
             check_stop(should_stop)
             progress("PatchCore 점수 계산", 0.5 + 0.5 * k / len(targets))
             img = self._read(it.path, mask)
-            full = self._to_full(self._score_map(model, bank, self._prep(img, box)), box, img.shape)
-            masked = np.where(eroded, full, -np.inf)
+            b, m, s = placed(img)
+            full = self._to_full(self._score_map(model, bank, self._prep(img, b)), b, img.shape)
+            masked = np.where(m, full, -np.inf)
+            if s is not None:
+                res.shifts[it.path] = s
             y, x = np.unravel_index(int(np.argmax(masked)), masked.shape)
             res.scores[it.path] = float(masked[y, x])
             res.peaks[it.path] = (int(x), int(y))

@@ -8,6 +8,7 @@ from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                                QPushButton, QSplitter, QVBoxLayout, QWidget)
 
+from impostor.align import Aligner, describe, shift_mask
 from impostor.dataset import Dataset, Item, Label
 from impostor.imageio import imread, load_mask
 from impostor.ui.canvas import ImageCanvas
@@ -32,6 +33,7 @@ class ThumbGrid(QWidget):
         super().__init__(parent)
         self.ds: Dataset | None = None
         self.mask = None
+        self.aligner: Aligner | None = None
         self.crop = None
         self.mask_shape = None     # 크롭은 마스크와 크기가 같은 이미지에만 적용
         self.shown: list[Item] = []
@@ -66,9 +68,16 @@ class ThumbGrid(QWidget):
         self.preview = ImageCanvas()     # 휠 확대·축소, 가운데 버튼 이동. 확대 상태는 다음 이미지에도 유지
         self.preview.setMinimumWidth(400)
         self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
+        self.shift_label = QLabel()
+        self.shift_label.setStyleSheet("color: gray")
+        right = QWidget()
+        rv = QVBoxLayout(right)
+        rv.setContentsMargins(0, 0, 0, 0)
+        rv.addWidget(self.preview, 1)
+        rv.addWidget(self.shift_label)
         sp = QSplitter()
         sp.addWidget(self.view)
-        sp.addWidget(self.preview)
+        sp.addWidget(right)
         sp.setSizes([420, 800])
         hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · 휠 확대/축소 · 가운데 버튼 이동 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
         hint.setStyleSheet("color: gray")
@@ -86,6 +95,7 @@ class ThumbGrid(QWidget):
             self.mask, self.crop, self.mask_shape = mask, mask_crop_box(mask), mask.shape
         except OSError:
             self.mask, self.crop, self.mask_shape = None, None, None
+        self.aligner = Aligner.for_dataset(ds)
         self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         self._refill()
 
@@ -135,8 +145,11 @@ class ThumbGrid(QWidget):
         first = not self.preview.has_image()
         self.preview.set_image(img)            # 크기가 같으면 확대·위치 유지
         same = img.shape[:2] == self.mask_shape
-        self.preview.set_mask_outline(self.mask if same else None)
+        s = self.aligner.shift(img) if (self.aligner is not None and same) else None
+        mask = shift_mask(self.mask, s[0], s[1]) if s is not None else self.mask
+        self.preview.set_mask_outline(mask if same else None)
         self.preview.set_boxes(it.boxes)
+        self.shift_label.setText(describe(s))
         if first and self.crop is not None and same:
             y0, y1, x0, x1 = self.crop
             self.preview.fit_rect(x0, y0, x1, y1)   # 처음엔 판(검사 영역)에 맞춰

@@ -147,3 +147,24 @@ def test_no_algorithm_column(qtbot, make_view):
     run_and_wait(qtbot, v)
     headers = [v.table.horizontalHeaderItem(c).text() for c in range(v.table.columnCount())]
     assert "알고리즘" not in headers and headers[0] == "놓침"
+
+
+def test_result_outline_uses_recorded_shift(qtbot, monkeypatch, tmp_path):
+    from tests.conftest import make_shifted
+
+    class ShiftFake(FakeAlgo):
+        def run(self, ds, split, progress, should_stop):
+            r = FakeAlgo.run(self, ds, split, progress, should_stop)
+            r.shifts = {p: (10.0, -5.0, 0.5) for p in r.scores}
+            return r
+
+    monkeypatch.setattr(rv, "REGISTRY", {"Fake": ShiftFake})
+    v = rv.ResultView()
+    qtbot.addWidget(v)
+    ds, _ = make_shifted(tmp_path)
+    v.set_job(ds, "Fake", {})
+    run_and_wait(qtbot, v)
+    v.images.selectRow(0)
+    rect = v.views["원본"].mask_rect()
+    assert abs(rect.left() - (224 // 4 + 10)) <= 2 and abs(rect.top() - (224 // 4 - 5)) <= 2
+    assert "dx +10" in v.shift_label.text()

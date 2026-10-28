@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from impostor.algorithms.params import defaults
+from impostor.align import Aligner, shift_mask
 from impostor.algorithms.base import AlgoResult, Cancelled, Progress, ShouldStop, check_stop, eval_items
 from impostor.dataset import DATASET_DIR, Dataset, Item
 from impostor.imageio import imread, imsize, load_mask
@@ -97,6 +98,17 @@ class Yolo:
         for it in interf + thresh + test + split.train:   # 학습 전에 확인해야 빨리 실패한다
             if imsize(it.path) != mask.shape:
                 raise ValueError(f"마스크와 크기가 다른 이미지입니다: {it.path}")
+        aligner = Aligner.for_dataset(ds)       # 마스터 이미지가 있으면 이미지마다 마스크 위치를 맞춘다
+        shifts: dict[str, tuple] = {}
+
+        def mask_for(it, img):
+            if aligner is None:
+                return mask
+            if it.path not in shifts:
+                shifts[it.path] = aligner.shift(img)
+            dx, dy, _ = shifts[it.path]
+            return shift_mask(mask, dx, dy)
+
         k = min(self.params["k"], len(boxed))
         order = sorted(boxed, key=lambda i: i.path)
         random.Random(SEED).shuffle(order)
@@ -117,13 +129,13 @@ class Yolo:
                     check_stop(should_stop)
                     img = imread(it.path)
                     t0 = time.perf_counter()
-                    per.setdefault(it.path, []).append(self._predict(model, img, mask))
+                    per.setdefault(it.path, []).append(self._predict(model, img, mask_for(it, img)))
                     t_pred += time.perf_counter() - t0
                     n_pred += 1
             finally:
                 shutil.rmtree(root, ignore_errors=True)
 
-        res = AlgoResult(self.name)
+        res = AlgoResult(self.name, shifts=shifts)
         for it in interf + thresh + test:
             preds = per[it.path]
             best = max(preds, key=lambda p: p[0])

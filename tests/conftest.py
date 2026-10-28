@@ -72,3 +72,35 @@ def tmp_images(tmp_path) -> TmpImages:
         first = first or p
     mask = write_png(tmp_path / "마스크" / "mask.png", make_mask(64, 48))
     return TmpImages(str(root), mask, first)
+
+
+def make_shifted(tmp_path: Path, n_normal=12, n_interf=2, size=224, seed=1):
+    """마스터 이미지·마스크가 Master 폴더에 있고, 각 차량 이미지가 마스터에서 ±15px 밀린 데이터셋.
+    반환: (Dataset, {경로: (dx, dy)})"""
+    from impostor.dataset import Dataset, Item, Label
+
+    rng = np.random.default_rng(seed)
+    small = rng.integers(40, 200, (size // 8, size // 8), np.uint8)
+    base = cv2.cvtColor(cv2.resize(small, (size, size), interpolation=cv2.INTER_CUBIC), cv2.COLOR_GRAY2BGR)
+    master = tmp_path / "Master"
+    write_png(master / "cam_IMG_Texture_8Bit.png", base)
+    mask = write_png(master / "cam_IMG_Kungfu.png", make_mask(size, size))
+
+    def moved(dx, dy):
+        img = np.roll(np.roll(base, dy, axis=0), dx, axis=1).copy()
+        return np.clip(img.astype(int) + rng.normal(0, 3, img.shape), 0, 255).astype(np.uint8)
+
+    items, shifts = [], {}
+    for k in range(n_normal + n_interf):
+        dx, dy = (int(v) for v in rng.integers(-15, 16, 2))
+        img = moved(dx, dy)
+        it = Item("", f"c{k:02d}", Label.NORMAL)
+        if k >= n_normal:
+            x0, y0 = size // 4 + 20 + dx, size // 4 + 20 + dy
+            img[y0:y0 + 30, x0:x0 + 30] = 255
+            it.label = Label.INTERFERENCE
+            it.add_box((x0, y0, x0 + 30, y0 + 30))
+        it.path = write_png(tmp_path / f"c{k:02d}" / "cam_IMG_Texture_8Bit.png", img)
+        items.append(it)
+        shifts[it.path] = (dx, dy)
+    return Dataset("shifted", mask, items), shifts
