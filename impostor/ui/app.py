@@ -3,9 +3,10 @@ import sys
 from pathlib import Path
 
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QTabWidget, QWidget
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QTabWidget
 
 from impostor.dataset import DATASET_DIR, Dataset, load_dataset, save_dataset
+from impostor.ui.compare_tab import CompareTab
 from impostor.ui.dataset_dialogs import ImportDialog, ScanDialog
 from impostor.ui.label_tab import LabelTab
 
@@ -22,7 +23,8 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.label_tab = LabelTab()
         self.label_tab.changed.connect(lambda: self._set_dirty(True))
-        self.compare_tab = self._make_compare_tab()
+        self.compare_tab = CompareTab()
+        self.label_tab.changed.connect(self.compare_tab.labels_changed)
         self.tabs.addTab(self.label_tab, "라벨링")
         self.tabs.addTab(self.compare_tab, "비교")
         self.setCentralWidget(self.tabs)
@@ -39,9 +41,6 @@ class MainWindow(QMainWindow):
             menu.addAction(a)
         self._update_title()
 
-    def _make_compare_tab(self) -> QWidget:
-        return QWidget()
-
     # ---- 상태 ----
     def _update_title(self) -> None:
         name = f" — {self.dataset.name}" if self.dataset else ""
@@ -54,8 +53,7 @@ class MainWindow(QMainWindow):
     def set_dataset(self, ds: Dataset, dirty: bool = False) -> None:
         self.dataset = ds
         self.label_tab.set_dataset(ds)
-        if hasattr(self.compare_tab, "set_dataset"):
-            self.compare_tab.set_dataset(ds)
+        self.compare_tab.set_dataset(ds)
         self._set_dirty(dirty)
 
     # ---- 메뉴 ----
@@ -109,6 +107,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             e.ignore()
             return
+        self.compare_tab.shutdown()
         super().closeEvent(e)
 
 
