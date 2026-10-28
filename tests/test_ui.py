@@ -243,3 +243,22 @@ def test_scan_dialog_has_no_exclude_field_but_skips_master(qtbot, tmp_path):
     assert not hasattr(d, "exclude")
     d.set_root(str(root))
     assert len(d.build().items) == 3
+
+
+def test_data_step_shows_and_changes_master_file(qtbot, tmp_path):
+    from tests.conftest import make_shifted
+    from impostor.ui.wizard import DataStep
+    ds, _ = make_shifted(tmp_path)
+    real_mask = ds.mask_path
+    ds.mask_path = str(tmp_path / "Master" / "copy_of_mask.png")
+    import shutil
+    shutil.copy(real_mask, ds.mask_path)
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(ds)
+    assert "copy_of_mask.png" in s.master_label.text() and "위치 보정 안 됨" in s.master_label.text()
+    with qtbot.waitSignal(s.changed, timeout=1000):
+        s.set_mask_path(real_mask)
+    assert ds.mask_path == real_mask
+    assert "위치 보정 가능" in s.master_label.text()
+    assert s.grid.aligner is not None

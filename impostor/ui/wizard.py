@@ -2,12 +2,13 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QComboBox, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox,
+from PySide6.QtWidgets import (QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox,
                                QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
 
 from impostor import dataset as dataset_mod
 from impostor.algorithms import PARAMS, REGISTRY, defaults
 from impostor.dataset import Dataset, Label
+from impostor.align import reference_for
 from impostor.readiness import readiness
 from impostor.ui.label_tab import LabelTab
 from impostor.ui.result_view import ResultView
@@ -82,6 +83,14 @@ class DataStep(QWidget):
             self.bar_buttons.append(b)
         bar.addStretch()
         self.hint = QLabel()
+        self.master_label = QLabel()
+        self.master_label.setWordWrap(True)
+        self.master_btn = QPushButton("마스터 파일 변경")
+        self.master_btn.clicked.connect(self._pick_master)
+        self.bar_buttons_extra = [self.master_btn]
+        master_row = QHBoxLayout()
+        master_row.addWidget(self.master_label, 1)
+        master_row.addWidget(self.master_btn)
         self.label_tab = LabelTab()
         self.label_tab.changed.connect(self._edited)
         self.grid = ThumbGrid()
@@ -95,6 +104,7 @@ class DataStep(QWidget):
         self.status.setWordWrap(True)
         v = QVBoxLayout(self)
         v.addLayout(bar)
+        v.addLayout(master_row)
         v.addWidget(self.hint)
         v.addWidget(self.views, 1)
         v.addWidget(self.status)
@@ -132,8 +142,32 @@ class DataStep(QWidget):
             self.mask_error = ""
         self.label_tab.set_dataset(ds)
         self.grid.set_dataset(ds)
+        self._update_master_label()
         self.refresh_saved()
         self.update_status()
+
+    def _update_master_label(self) -> None:
+        if self.ds is None:
+            self.master_label.setText("")
+            return
+        ref = reference_for(self.ds.mask_path)
+        state = ("<span style='color:#2a7a2a'>위치 보정 가능 (마스터 이미지 있음)</span>" if ref else
+                 "<span style='color:#c03030'>위치 보정 안 됨 — 옆에 마스터 이미지(…_IMG_Texture_8Bit.png)가 없음</span>")
+        self.master_label.setText(f"마스터 파일: {self.ds.mask_path}<br>{state}")
+
+    def _pick_master(self) -> None:
+        if self.ds is None:
+            return
+        f, _ = QFileDialog.getOpenFileName(self, "마스터 파일 (검사 영역 마스크)", str(Path(self.ds.mask_path).parent),
+                                           "마스크 (*_IMG_Kungfu.png);;이미지 (*.png *.bmp)")
+        if f:
+            self.set_mask_path(f)
+
+    def set_mask_path(self, path: str) -> None:
+        """기존 데이터셋의 마스터 파일을 바꾼다 (크기 검사·위치 보정을 다시 준비)."""
+        self.ds.mask_path = path
+        self.set_dataset(self.ds)
+        self.changed.emit()
 
     def open_single(self, item) -> None:
         if self.algo != "YOLO":      # PatchCore 는 박스가 필요 없어 박스 탭이 없다

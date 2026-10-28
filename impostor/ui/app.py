@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         self.menu.setEnabled(not running)
         for a in self.menu.actions():       # 단축키(Ctrl+O/S)도 확실히 막는다
             a.setEnabled(not running)
-        for b in self.wizard.data.bar_buttons + [self.wizard.data.saved]:
+        for b in self.wizard.data.bar_buttons + self.wizard.data.bar_buttons_extra + [self.wizard.data.saved]:
             b.setEnabled(not running)
 
     # ---- 메뉴 ----
