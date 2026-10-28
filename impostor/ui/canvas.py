@@ -63,6 +63,12 @@ class ImageCanvas(QGraphicsView):
         if first:
             self.fit()
 
+    def has_image(self) -> bool:
+        return self._img is not None
+
+    def fit_rect(self, x0: int, y0: int, x1: int, y1: int) -> None:
+        self.fitInView(QRectF(x0, y0, x1 - x0, y1 - y0), Qt.KeepAspectRatio)
+
     def fit(self) -> None:
         if self._size != (0, 0):
             self.fitInView(QRectF(0, 0, *self._size), Qt.KeepAspectRatio)

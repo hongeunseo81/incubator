@@ -2,16 +2,15 @@
 
 그림은 미리 만들지 않는다(수백 장 디코딩이 화면을 멈추게 함). 지금 고른 한 장만 오른쪽에 미리보기.
 """
-import cv2
 import numpy as np
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Signal
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget)
+                               QPushButton, QSplitter, QVBoxLayout, QWidget)
 
 from impostor.dataset import Dataset, Item, Label
 from impostor.imageio import imread, load_mask
-from impostor.ui.canvas import to_pixmap
+from impostor.ui.canvas import ImageCanvas
 from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT
 
 FILTERS = ["전체", "정상", "간섭", "미분류"]
@@ -32,6 +31,7 @@ class ThumbGrid(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.ds: Dataset | None = None
+        self.mask = None
         self.crop = None
         self.mask_shape = None     # 크롭은 마스크와 크기가 같은 이미지에만 적용
         self.shown: list[Item] = []
@@ -63,16 +63,14 @@ class ThumbGrid(QWidget):
         self.view.currentRowChanged.connect(self._preview)
         self.view.itemDoubleClicked.connect(lambda w: self.open_item.emit(self.shown[self.view.row(w)]))
         self.view.installEventFilter(self)
-        self.preview = QLabel("항목을 클릭하면 여기에 보입니다")
-        self.preview.setAlignment(Qt.AlignCenter)
+        self.preview = ImageCanvas()     # 휠 확대·축소, 가운데 버튼 이동. 확대 상태는 다음 이미지에도 유지
         self.preview.setMinimumWidth(400)
-        self.preview.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.preview.setStyleSheet("background: #282828; color: #aaa")
+        self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         sp = QSplitter()
         sp.addWidget(self.view)
         sp.addWidget(self.preview)
         sp.setSizes([420, 800])
-        hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
+        hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · 휠 확대/축소 · 가운데 버튼 이동 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
         hint.setStyleSheet("color: gray")
 
         v = QVBoxLayout(self)
@@ -85,9 +83,10 @@ class ThumbGrid(QWidget):
         self.ds = ds
         try:
             mask = load_mask(ds.mask_path)
-            self.crop, self.mask_shape = mask_crop_box(mask), mask.shape
+            self.mask, self.crop, self.mask_shape = mask, mask_crop_box(mask), mask.shape
         except OSError:
-            self.crop, self.mask_shape = None, None
+            self.mask, self.crop, self.mask_shape = None, None, None
+        self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         self._refill()
 
     def refresh(self) -> None:
@@ -131,15 +130,16 @@ class ThumbGrid(QWidget):
         try:
             img = imread(it.path)
         except OSError as e:
-            self.preview.setText(str(e))
+            self.preview.clear_all(str(e))
             return
-        if self.crop is not None and img.shape[:2] == self.mask_shape:
+        first = not self.preview.has_image()
+        self.preview.set_image(img)            # 크기가 같으면 확대·위치 유지
+        same = img.shape[:2] == self.mask_shape
+        self.preview.set_mask_outline(self.mask if same else None)
+        self.preview.set_boxes(it.boxes)
+        if first and self.crop is not None and same:
             y0, y1, x0, x1 = self.crop
-            img = img[y0:y1, x0:x1]
-        w = max(200, self.preview.width())
-        h = max(1, round(img.shape[0] * w / img.shape[1]))
-        img = cv2.resize(img, (w, h), interpolation=cv2.INTER_AREA)
-        self.preview.setPixmap(to_pixmap(img))
+            self.preview.fit_rect(x0, y0, x1, y1)   # 처음엔 판(검사 영역)에 맞춰
 
     def eventFilter(self, obj, e) -> bool:
         # 목록이 글자 키로 항목을 찾지 않도록 먼저 가로챈다

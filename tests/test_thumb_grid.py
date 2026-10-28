@@ -31,7 +31,23 @@ def test_lists_folder_names_without_decoding(grid):
 def test_preview_shows_current_only(qtbot, grid):
     g, ds = grid
     g.view.setCurrentRow(1)
-    assert g.preview_path == ds.items[1].path and not g.preview.pixmap().isNull()
+    assert g.preview_path == ds.items[1].path and g.preview.has_image()
+
+
+def test_preview_wheel_zoom_kept_between_images(qtbot, grid):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+    g, ds = grid
+    g.view.setCurrentRow(0)
+    before = g.preview.transform().m11()
+    ev = QWheelEvent(QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120), Qt.NoButton,
+                     Qt.NoModifier, Qt.NoScrollPhase, False)
+    QApplication.sendEvent(g.preview.viewport(), ev)
+    zoomed = g.preview.transform().m11()
+    assert zoomed > before
+    g.view.setCurrentRow(1)
+    assert g.preview.transform().m11() == zoomed
 
 
 def test_bulk_label_selection(qtbot, grid):
