@@ -43,6 +43,7 @@ class Dataset:
     name: str
     mask_path: str
     items: list[Item] = field(default_factory=list)
+    align: bool = True        # 이미지별 위치 보정 (마스터 이미지가 있을 때만 동작)
 
     def exists(self, item: Item) -> bool:
         return os.path.isfile(item.path)
@@ -135,6 +136,7 @@ def save_dataset(ds: Dataset, path) -> None:
         "version": 1,
         "name": ds.name,
         "mask_path": ds.mask_path,
+        "align": ds.align,
         "items": [{"path": i.path, "group": i.group, "label": i.label.value,
                    "boxes": [list(b) for b in i.boxes], "pin": i.pin.value} for i in ds.items],
     }
@@ -145,4 +147,4 @@ def load_dataset(path) -> Dataset:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     items = [Item(d["path"], d["group"], Label(d["label"]), [tuple(b) for b in d["boxes"]],
                   Pin(d["pin"])) for d in data["items"]]
-    return Dataset(data["name"], data["mask_path"], items)
+    return Dataset(data["name"], data["mask_path"], items, data.get("align", True))

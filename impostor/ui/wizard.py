@@ -2,8 +2,8 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox,
-                               QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+                               QPushButton, QSpinBox, QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
 
 from impostor import dataset as dataset_mod
 from impostor.algorithms import PARAMS, REGISTRY, defaults
@@ -20,8 +20,16 @@ DESCRIPTIONS = {
     "PatchCore": "이상탐지 — 정상 이미지만으로 학습합니다. 처음 보는 이물도 잡습니다.\n필요: 정상/간섭 라벨 (박스는 선택, 그리면 위치 적중 계산)",
     "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
 }
+VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
 OK_STYLE = "color: #2a7a2a"
 BAD_STYLE = "color: #c03030"
+
+
+def _row_title(text: str) -> QLabel:
+    """데이터셋 줄과 마스터 파일 줄의 이름표 폭을 맞춰 값 칸이 세로로 줄 서게 한다."""
+    lab = QLabel(text)
+    lab.setFixedWidth(80)
+    return lab
 
 
 class AlgoStep(QWidget):
@@ -69,11 +77,11 @@ class DataStep(QWidget):
         self.size_bad: set[str] = set()   # 데이터셋을 열 때 한 번만 확인 (이미지 전부 디코딩이라 비쌈)
         self.mask_error = ""
         self.saved = QComboBox()
-        self.saved.setMinimumWidth(240)
+        self.saved.setFixedWidth(VALUE_W)
         self.saved.activated.connect(self._picked)
         self.bar_buttons = []
         bar = QHBoxLayout()
-        bar.addWidget(QLabel("데이터셋"))
+        bar.addWidget(_row_title("데이터셋"))
         bar.addWidget(self.saved)
         for text, sig in (("원본 폴더 스캔", self.new_scan_requested), ("폴더 가져오기", self.import_requested),
                           ("저장", self.save_requested)):
@@ -83,14 +91,24 @@ class DataStep(QWidget):
             self.bar_buttons.append(b)
         bar.addStretch()
         self.hint = QLabel()
-        self.master_label = QLabel()
-        self.master_label.setWordWrap(True)
-        self.master_btn = QPushButton("마스터 파일 변경")
+        # 데이터셋 줄과 같은 모양: 이름표 · 값 · 버튼 · (체크) · 상태
+        self.master_path = QLineEdit()
+        self.master_path.setReadOnly(True)
+        self.master_path.setFixedWidth(VALUE_W)
+        self.master_btn = QPushButton("변경")
         self.master_btn.clicked.connect(self._pick_master)
-        self.bar_buttons_extra = [self.master_btn]
+        self.align_check = QCheckBox("위치 보정")
+        self.align_check.setToolTip("이미지마다 마스터와의 위치 차이를 재서 마스크를 옮겨 씁니다")
+        self.align_check.toggled.connect(self._align_toggled)
+        self.master_label = QLabel()
+        self.bar_buttons_extra = [self.master_btn, self.align_check]
         master_row = QHBoxLayout()
-        master_row.addWidget(self.master_label, 1)
+        master_row.addWidget(_row_title("마스터 파일"))
+        master_row.addWidget(self.master_path)
         master_row.addWidget(self.master_btn)
+        master_row.addWidget(self.align_check)
+        master_row.addWidget(self.master_label)
+        master_row.addStretch()
         self.label_tab = LabelTab()
         self.label_tab.changed.connect(self._edited)
         self.grid = ThumbGrid()
@@ -148,12 +166,31 @@ class DataStep(QWidget):
 
     def _update_master_label(self) -> None:
         if self.ds is None:
+            self.master_path.setText("")
             self.master_label.setText("")
             return
         ref = reference_for(self.ds.mask_path)
-        state = ("<span style='color:#2a7a2a'>위치 보정 가능 (마스터 이미지 있음)</span>" if ref else
-                 "<span style='color:#c03030'>위치 보정 안 됨 — 옆에 마스터 이미지(…_IMG_Texture_8Bit.png)가 없음</span>")
-        self.master_label.setText(f"마스터 파일: {self.ds.mask_path}<br>{state}")
+        self.master_path.setText(self.ds.mask_path)
+        self.master_path.setToolTip(self.ds.mask_path)
+        self.align_check.blockSignals(True)
+        self.align_check.setEnabled(ref is not None)
+        self.align_check.setChecked(ref is not None and self.ds.align)
+        self.align_check.blockSignals(False)
+        if ref is None:
+            state = "<span style='color:#c03030'>위치 보정 안 됨 — 옆에 마스터 이미지가 없음</span>"
+        elif self.ds.align:
+            state = "<span style='color:#2a7a2a'>위치 보정 켜짐</span>"
+        else:
+            state = "<span style='color:gray'>위치 보정 꺼짐</span>"
+        self.master_label.setText(state)
+
+    def _align_toggled(self, on: bool) -> None:
+        if self.ds is None or self.ds.align == on:
+            return
+        self.ds.align = on
+        self.grid.set_dataset(self.ds)     # 미리보기도 보정 여부를 따른다
+        self._update_master_label()
+        self.changed.emit()
 
     def _pick_master(self) -> None:
         if self.ds is None:

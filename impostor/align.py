@@ -50,7 +50,7 @@ class Aligner:
 
     @classmethod
     def for_dataset(cls, ds: Dataset) -> "Aligner | None":
-        ref = reference_for(ds.mask_path)
+        ref = reference_for(ds.mask_path) if ds.align else None
         if ref is None:
             return None
         try:

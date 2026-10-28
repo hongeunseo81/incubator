@@ -49,3 +49,11 @@ def test_reference_for_finds_master_texture(tmp_path):
 def test_for_dataset_none_without_reference(tmp_path):
     from tests.conftest import make_synthetic
     assert Aligner.for_dataset(make_synthetic(tmp_path)) is None
+
+
+def test_for_dataset_respects_off_switch(tmp_path):
+    from tests.conftest import make_shifted
+    ds, _ = make_shifted(tmp_path)
+    assert Aligner.for_dataset(ds) is not None
+    ds.align = False
+    assert Aligner.for_dataset(ds) is None

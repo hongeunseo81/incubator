@@ -256,9 +256,31 @@ def test_data_step_shows_and_changes_master_file(qtbot, tmp_path):
     s = DataStep()
     qtbot.addWidget(s)
     s.set_dataset(ds)
-    assert "copy_of_mask.png" in s.master_label.text() and "위치 보정 안 됨" in s.master_label.text()
+    assert "copy_of_mask.png" in s.master_path.text() and "위치 보정 안 됨" in s.master_label.text()
     with qtbot.waitSignal(s.changed, timeout=1000):
         s.set_mask_path(real_mask)
     assert ds.mask_path == real_mask
-    assert "위치 보정 가능" in s.master_label.text()
+    assert "위치 보정 켜짐" in s.master_label.text()
     assert s.grid.aligner is not None
+
+
+def test_master_row_layout_and_align_toggle(qtbot, tmp_path):
+    from tests.conftest import make_shifted
+    from impostor.ui.wizard import DataStep
+    ds, _ = make_shifted(tmp_path)
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(ds)
+    assert s.master_path.isReadOnly() and s.master_path.text() == ds.mask_path
+    assert s.align_check.isEnabled() and s.align_check.isChecked()
+    with qtbot.waitSignal(s.changed, timeout=1000):
+        s.align_check.setChecked(False)
+    assert ds.align is False and s.grid.aligner is None
+
+
+def test_align_toggle_disabled_without_reference(qtbot, small_ds):
+    from impostor.ui.wizard import DataStep
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(small_ds)
+    assert not s.align_check.isEnabled() and not s.align_check.isChecked()

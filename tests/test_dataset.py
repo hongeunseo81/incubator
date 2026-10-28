@@ -138,3 +138,17 @@ def test_imsize_reads_png_header_only(tmp_path, monkeypatch):
     p = write_png(tmp_path / "한글 폴더" / "a.png", np.zeros((48, 64, 3), np.uint8))
     monkeypatch.setattr(io, "imread", lambda path: (_ for _ in ()).throw(AssertionError("decoded")))
     assert io.imsize(p) == (48, 64)
+
+
+def test_align_flag_roundtrip_and_default(tmp_path, tmp_images):
+    import json
+    ds = scan_dataset("t", tmp_images.root, PATTERN, tmp_images.mask)
+    assert ds.align is True
+    ds.align = False
+    p = tmp_path / "t.json"
+    save_dataset(ds, p)
+    assert load_dataset(p).align is False
+    data = json.loads(p.read_text(encoding="utf-8"))
+    del data["align"]                                   # 예전 파일에는 키가 없다
+    p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    assert load_dataset(p).align is True
