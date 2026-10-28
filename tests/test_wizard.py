@@ -44,8 +44,8 @@ def test_patchcore_flow_reaches_result(wizard, tmp_path):
     wizard.next_btn.click()
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
     wizard.next_btn.click()
-    wizard.next_btn.click()
-    assert wizard.step == 3 and wizard.result.algo == "PatchCore"
+    assert wizard.step == 2 and wizard.result.algo == "PatchCore"
+    assert len(wizard.step_labels) == 3 and not wizard.next_btn.isEnabled()
     assert wizard.result.params == {"width": 640, "coreset": 20000, "erode": 5}
     assert wizard.result.table.rowCount() == 0
     assert "PatchCore" in wizard.step_labels[0].text()
@@ -55,7 +55,7 @@ def test_param_form_follows_algo(wizard, tmp_path):
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
     choose(wizard, "YOLO")
     wizard.go(2)
-    assert "epochs" in wizard.params.widgets
+    assert "epochs" in wizard.params.widgets and wizard.params.isVisible() == wizard.result.isVisible()
     wizard.go(0)
     choose(wizard, "PatchCore")
     wizard.go(2)
@@ -68,7 +68,6 @@ def test_param_change_reaches_result(wizard, tmp_path):
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
     wizard.next_btn.click()
     wizard.params.widgets["coreset"].setValue(5000)
-    wizard.next_btn.click()
     assert wizard.result.params["coreset"] == 5000
     wizard.params.reset_btn.click()
     assert wizard.params.values()["coreset"] == 20000
@@ -82,16 +81,15 @@ def to_result(qtbot, wizard, tmp_path, monkeypatch, cls):
     ds = make_synthetic(tmp_path, n_normal=10, n_boxed=2)
     wizard.set_dataset(ds)
     wizard.next_btn.click()
-    wizard.next_btn.click()
     return ds
 
 
 def test_navigation_locked_while_running(qtbot, wizard, tmp_path, monkeypatch):
     to_result(qtbot, wizard, tmp_path, monkeypatch, SlowFake)
     wizard.result.run_btn.click()
-    assert not wizard.prev_btn.isEnabled()
+    assert not wizard.prev_btn.isEnabled() and not wizard.params.isEnabled()
     qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
-    assert wizard.prev_btn.isEnabled()
+    assert wizard.prev_btn.isEnabled() and wizard.params.isEnabled()
 
 
 def test_results_cleared_after_edit(qtbot, wizard, tmp_path, monkeypatch):
@@ -100,9 +98,8 @@ def test_results_cleared_after_edit(qtbot, wizard, tmp_path, monkeypatch):
     qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
     assert wizard.result.table.rowCount() == 1
     wizard.prev_btn.click()
-    wizard.prev_btn.click()
     wizard.data.label_tab.set_label(Label.UNLABELED)
-    wizard.go(3)
+    wizard.go(2)
     assert wizard.result.table.rowCount() == 0
 
 
@@ -124,18 +121,18 @@ def test_main_window_uses_wizard(qtbot, monkeypatch):
 
 
 def test_go_cannot_skip_ungated_steps(wizard):
-    wizard.go(3)
+    wizard.go(2)
     assert wizard.step == 0
     choose(wizard, "YOLO")
-    wizard.go(3)
+    wizard.go(2)
     assert wizard.step == 1
 
 
 def test_opening_unready_dataset_at_result_goes_back(wizard, tmp_path):
     choose(wizard, "PatchCore")
     wizard.set_dataset(make_synthetic(tmp_path / "a", n_normal=10, n_boxed=2))
-    wizard.go(3)
-    assert wizard.step == 3
+    wizard.go(2)
+    assert wizard.step == 2
     wizard.set_dataset(make_synthetic(tmp_path / "b", n_normal=1, n_boxed=2))
     assert wizard.step == 1 and "최소 3개" in wizard.data.status.text()
 
@@ -143,7 +140,7 @@ def test_opening_unready_dataset_at_result_goes_back(wizard, tmp_path):
 def test_opening_ready_dataset_at_result_rebinds(wizard, tmp_path):
     choose(wizard, "PatchCore")
     wizard.set_dataset(make_synthetic(tmp_path / "a", n_normal=10, n_boxed=2))
-    wizard.go(3)
+    wizard.go(2)
     b = make_synthetic(tmp_path / "b", n_normal=10, n_boxed=2)
     wizard.set_dataset(b)
     assert wizard.result.ds is b
@@ -198,3 +195,18 @@ def test_entering_data_step_opens_latest_saved_dataset(qtbot, tmp_path, monkeypa
     choose(w, "PatchCore")
     w.next_btn.click()
     assert opened == [str(tmp_path / "saved" / "new.json")]
+
+
+def test_param_change_clears_result(qtbot, wizard, tmp_path, monkeypatch):
+    to_result(qtbot, wizard, tmp_path, monkeypatch, FakeAlgo)
+    wizard.result.run_btn.click()
+    qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
+    wizard.params.widgets["coreset"].setValue(5000)
+    assert wizard.result.table.rowCount() == 0
+
+
+def test_param_help_shown(wizard, tmp_path):
+    choose(wizard, "PatchCore")
+    wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
+    wizard.go(2)
+    assert "오검출" in wizard.params.help_text("coreset")

@@ -13,7 +13,8 @@ from impostor.ui.label_tab import LabelTab
 from impostor.ui.result_view import ResultView
 from impostor.ui.thumb_grid import ThumbGrid
 
-STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 파라미터", "④ 실행·결과"]
+STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 실행·결과"]
+RUN = 2   # 마지막 단계: 왼쪽 파라미터 + 오른쪽 실행·결과
 DESCRIPTIONS = {
     "PatchCore": "이상탐지 — 정상 이미지만으로 학습합니다. 처음 보는 이물도 잡습니다.\n필요: 정상/간섭 라벨 (박스는 선택, 그리면 위치 적중 계산)",
     "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
@@ -180,6 +181,17 @@ class DataStep(QWidget):
         self.status.setText("준비 완료 — 다음으로 넘어가세요" if not p else "준비 필요: " + " · ".join(p))
         self.status.setStyleSheet(OK_STYLE if not p else BAD_STYLE)
 
+    def _params_changed(self) -> None:
+        # 실행 화면 안에서 바꾸므로 바로 결과 화면에 반영 (값이 달라지면 이전 결과는 지워진다)
+        if self.step == RUN:
+            self.result.set_job(self.ds, self.algo.selected, self.params.values())
+        else:
+            self.result.clear()
+
+    def _running(self, running: bool) -> None:
+        self.params.setEnabled(not running)
+        self._update_nav()
+
     def _edited(self) -> None:
         self.update_status()
         self.changed.emit()
@@ -192,6 +204,8 @@ class ParamStep(QWidget):
         super().__init__()
         self.algo: str | None = None
         self.widgets: dict[str, QWidget] = {}
+        self.helps: dict[str, QLabel] = {}
+        self.setMaximumWidth(320)
         self.title = QLabel()
         self.form_host = QWidget()
         self.reset_btn = QPushButton("기본값으로")
@@ -211,7 +225,7 @@ class ParamStep(QWidget):
         if old is not None:
             QWidget().setLayout(old)    # 기존 폼 버리기
         form = QFormLayout(self.form_host)
-        self.widgets = {}
+        self.widgets, self.helps = {}, {}
         for s in PARAMS[name]:
             if s.choices:
                 w = QComboBox()
@@ -222,8 +236,14 @@ class ParamStep(QWidget):
                 w.setRange(s.lo, s.hi)
                 w.setSingleStep(s.step)
                 w.valueChanged.connect(lambda _: self.changed.emit())
-            form.addRow(s.label, w)
+            hint = QLabel(s.help)
+            hint.setWordWrap(True)
+            hint.setStyleSheet("color: gray; font-size: 11px")
+            form.addRow(QLabel(f"<b>{s.label}</b>"))
+            form.addRow(w)
+            form.addRow(hint)
             self.widgets[s.key] = w
+            self.helps[s.key] = hint
         self.reset()
 
     def reset(self) -> None:
@@ -233,6 +253,9 @@ class ParamStep(QWidget):
                 w.setCurrentText(s.default)
             else:
                 w.setValue(s.default)
+
+    def help_text(self, key: str) -> str:
+        return self.helps[key].text()
 
     def values(self) -> dict:
         return {k: (w.currentText() if isinstance(w, QComboBox) else w.value()) for k, w in self.widgets.items()}
@@ -246,8 +269,13 @@ class Wizard(QWidget):
         self.data = DataStep()
         self.params = ParamStep()
         self.result = ResultView()
+        run_page = QWidget()
+        rp = QHBoxLayout(run_page)
+        rp.setContentsMargins(0, 0, 0, 0)
+        rp.addWidget(self.params)
+        rp.addWidget(self.result, 1)
         self.stack = QStackedWidget()
-        for w in (self.algo, self.data, self.params, self.result):
+        for w in (self.algo, self.data, run_page):
             self.stack.addWidget(w)
 
         self.step_labels = [QLabel(t) for t in STEP_TITLES]
@@ -273,8 +301,8 @@ class Wizard(QWidget):
 
         self.algo.changed.connect(self._algo_changed)
         self.data.changed.connect(self._edited)
-        self.params.changed.connect(self._edited)
-        self.result.running_changed.connect(lambda _: self._update_nav())
+        self.params.changed.connect(self._params_changed)
+        self.result.running_changed.connect(self._running)
         self._update_nav()
 
     # ---- 상태 ----
@@ -285,7 +313,7 @@ class Wizard(QWidget):
     def set_dataset(self, ds: Dataset) -> None:
         self.data.set_dataset(ds)
         self.result.clear()
-        if self.step >= 2:
+        if self.step == RUN:
             # ③·④에서 다른 데이터셋을 열면 준비 검사부터 다시: 안 되면 ②로, 되면 ④를 새 데이터셋에 묶는다
             self.go(self.step)
         self._update_nav()
@@ -297,6 +325,17 @@ class Wizard(QWidget):
         self.result.clear()
         self._update_nav()
 
+    def _params_changed(self) -> None:
+        # 실행 화면 안에서 바꾸므로 바로 결과 화면에 반영 (값이 달라지면 이전 결과는 지워진다)
+        if self.step == RUN:
+            self.result.set_job(self.ds, self.algo.selected, self.params.values())
+        else:
+            self.result.clear()
+
+    def _running(self, running: bool) -> None:
+        self.params.setEnabled(not running)
+        self._update_nav()
+
     def _edited(self) -> None:
         self.result.clear()
         self._update_nav()
@@ -306,7 +345,7 @@ class Wizard(QWidget):
             return self.algo.selected is not None
         if step == 1:
             return not self.data.problems()
-        return step == 2
+        return False
 
     # ---- 이동 ----
     def go(self, i: int) -> None:
@@ -316,7 +355,7 @@ class Wizard(QWidget):
             if not self.can_leave(k):
                 i = k
                 break
-        if i == 3:
+        if i == RUN:
             self.result.set_job(self.ds, self.algo.selected, self.params.values())
         self.step = i
         self.stack.setCurrentIndex(i)
@@ -330,12 +369,12 @@ class Wizard(QWidget):
         running = self.result.running
         self.prev_btn.setEnabled(self.step > 0 and not running)
         ok = self.can_leave(self.step)
-        self.next_btn.setEnabled(self.step < 3 and ok and not running)
-        why = "" if ok or self.step == 3 else (
+        self.next_btn.setEnabled(self.step < RUN and ok and not running)
+        why = "" if ok or self.step == RUN else (
             "알고리즘을 고르세요" if self.step == 0 else " · ".join(self.data.problems()))
         self.next_btn.setToolTip(why)
         self.reason.setText(why)
-        summaries = [self.algo.selected, self.ds.name if self.ds else None, None, None]
+        summaries = [self.algo.selected, self.ds.name if self.ds else None, None]
         for k, lab in enumerate(self.step_labels):
             text = STEP_TITLES[k]
             if k < self.step and summaries[k]:
