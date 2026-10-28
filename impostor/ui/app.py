@@ -1,14 +1,13 @@
-"""메인 창: 라벨링 탭 + 비교 탭, 데이터셋 메뉴."""
+"""메인 창: 단계 마법사 + 데이터셋 메뉴."""
 import sys
 from pathlib import Path
 
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QTabWidget
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from impostor.dataset import DATASET_DIR, Dataset, load_dataset, save_dataset
-from impostor.ui.result_view import ResultView
 from impostor.ui.dataset_dialogs import ImportDialog, ScanDialog
-from impostor.ui.label_tab import LabelTab
+from impostor.ui.wizard import Wizard
 
 APP_NAME = "Impostor"
 
@@ -20,16 +19,18 @@ class MainWindow(QMainWindow):
         self.dirty = False
         self.resize(1500, 900)
 
-        self.tabs = QTabWidget()
-        self.label_tab = LabelTab()
+        self.wizard = Wizard()
+        self.label_tab = self.wizard.data.label_tab
         self.label_tab.changed.connect(lambda: self._set_dirty(True))
-        self.compare_tab = ResultView()   # 임시 — Task 4 에서 마법사로 교체
-        self.label_tab.changed.connect(self.compare_tab.clear)
-        self.tabs.addTab(self.label_tab, "라벨링")
-        self.tabs.addTab(self.compare_tab, "비교")
-        self.setCentralWidget(self.tabs)
+        data = self.wizard.data
+        data.new_scan_requested.connect(self.new_scan)
+        data.import_requested.connect(self.new_import)
+        data.save_requested.connect(self.save)
+        data.open_requested.connect(self._open_saved)
+        self.wizard.result.running_changed.connect(self._running)
+        self.setCentralWidget(self.wizard)
 
-        menu = self.menuBar().addMenu("데이터셋")
+        self.menu = menu = self.menuBar().addMenu("데이터셋")
         for text, slot, key in (("새로 만들기 (폴더 스캔)…", self.new_scan, None),
                                 ("폴더 가져오기…", self.new_import, None),
                                 ("열기…", self.open_dialog, QKeySequence.Open),
@@ -52,9 +53,14 @@ class MainWindow(QMainWindow):
 
     def set_dataset(self, ds: Dataset, dirty: bool = False) -> None:
         self.dataset = ds
-        self.label_tab.set_dataset(ds)
-        self.compare_tab.clear()
+        self.wizard.set_dataset(ds)
         self._set_dirty(dirty)
+
+    def _running(self, running: bool) -> None:
+        # 실행 중에는 데이터셋을 바꾸거나 다시 열 수 없다
+        self.menu.setEnabled(not running)
+        for b in self.wizard.data.bar_buttons + [self.wizard.data.saved]:
+            b.setEnabled(not running)
 
     # ---- 메뉴 ----
     def _confirm_discard(self) -> bool:
@@ -85,6 +91,12 @@ class MainWindow(QMainWindow):
         if f:
             self.open_dataset(f)
 
+    def _open_saved(self, path: str) -> None:
+        if self._confirm_discard():
+            self.open_dataset(path)
+        else:
+            self.wizard.data.refresh_saved()
+
     def open_dataset(self, path: str) -> None:
         try:
             ds = load_dataset(path)
@@ -102,12 +114,13 @@ class MainWindow(QMainWindow):
             return
         save_dataset(self.dataset, Path(DATASET_DIR) / f"{self.dataset.name}.json")
         self._set_dirty(False)
+        self.wizard.data.refresh_saved()
 
     def closeEvent(self, e) -> None:
         if not self._confirm_discard():
             e.ignore()
             return
-        self.compare_tab.shutdown()
+        self.wizard.result.shutdown()
         super().closeEvent(e)
 
 

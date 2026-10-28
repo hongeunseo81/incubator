@@ -1,0 +1,275 @@
+"""단계 마법사: ① 알고리즘 → ② 데이터 준비 → ③ 파라미터 → ④ 실행·결과."""
+from pathlib import Path
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QComboBox, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox,
+                               QStackedWidget, QVBoxLayout, QWidget)
+
+from impostor import dataset as dataset_mod
+from impostor.algorithms import PARAMS, REGISTRY, defaults
+from impostor.dataset import Dataset
+from impostor.readiness import readiness
+from impostor.ui.label_tab import LabelTab
+from impostor.ui.result_view import ResultView
+
+STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 파라미터", "④ 실행·결과"]
+DESCRIPTIONS = {
+    "PatchCore": "이상탐지 — 정상 이미지만으로 학습합니다. 처음 보는 이물도 잡습니다.\n필요: 정상/간섭 라벨 (박스는 선택, 그리면 위치 적중 계산)",
+    "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
+}
+OK_STYLE = "color: #2a7a2a"
+BAD_STYLE = "color: #c03030"
+
+
+class AlgoStep(QWidget):
+    changed = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.selected: str | None = None
+        self.buttons: dict[str, QPushButton] = {}
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel("<h3>어떤 알고리즘을 시험할까요?</h3>"))
+        row = QHBoxLayout()
+        for name in REGISTRY:
+            b = QPushButton(f"{name}\n\n{DESCRIPTIONS.get(name, '')}")
+            b.setCheckable(True)
+            b.setMinimumSize(320, 160)
+            b.setStyleSheet("QPushButton { text-align: left; padding: 12px; } "
+                            "QPushButton:checked { border: 3px solid #3a8; }")
+            b.clicked.connect(lambda _=False, n=name: self.select(n))
+            row.addWidget(b)
+            self.buttons[name] = b
+        row.addStretch()
+        v.addLayout(row)
+        v.addStretch()
+
+    def select(self, name: str) -> None:
+        for n, b in self.buttons.items():
+            b.setChecked(n == name)
+        if name != self.selected:
+            self.selected = name
+            self.changed.emit()
+
+
+class DataStep(QWidget):
+    changed = Signal()
+    open_requested = Signal(str)
+    new_scan_requested = Signal()
+    import_requested = Signal()
+    save_requested = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.ds: Dataset | None = None
+        self.algo: str | None = None
+        self.saved = QComboBox()
+        self.saved.setMinimumWidth(240)
+        self.saved.activated.connect(self._picked)
+        self.bar_buttons = []
+        bar = QHBoxLayout()
+        bar.addWidget(QLabel("데이터셋"))
+        bar.addWidget(self.saved)
+        for text, sig in (("새로 만들기 (폴더 스캔)", self.new_scan_requested), ("폴더 가져오기", self.import_requested),
+                          ("저장", self.save_requested)):
+            b = QPushButton(text)
+            b.clicked.connect(sig.emit)
+            bar.addWidget(b)
+            self.bar_buttons.append(b)
+        bar.addStretch()
+        self.hint = QLabel()
+        self.label_tab = LabelTab()
+        self.label_tab.changed.connect(self._edited)
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+        v = QVBoxLayout(self)
+        v.addLayout(bar)
+        v.addWidget(self.hint)
+        v.addWidget(self.label_tab, 1)
+        v.addWidget(self.status)
+        self.refresh_saved()
+        self.update_status()
+
+    def refresh_saved(self) -> None:
+        self.saved.blockSignals(True)
+        self.saved.clear()
+        self.saved.addItem("— 저장된 데이터셋 —", None)
+        d = Path(dataset_mod.DATASET_DIR)
+        for p in sorted(d.glob("*.json")) if d.is_dir() else []:
+            self.saved.addItem(p.stem, str(p))
+            if self.ds is not None and p.stem == self.ds.name:
+                self.saved.setCurrentIndex(self.saved.count() - 1)
+        self.saved.blockSignals(False)
+
+    def _picked(self, idx: int) -> None:
+        path = self.saved.itemData(idx)
+        if path:
+            self.open_requested.emit(path)
+
+    def set_dataset(self, ds: Dataset) -> None:
+        self.ds = ds
+        self.label_tab.set_dataset(ds)
+        self.refresh_saved()
+        self.update_status()
+
+    def set_algo(self, name: str | None) -> None:
+        self.algo = name
+        self.hint.setText("YOLO: 간섭 이미지마다 이물에 박스를 그려야 합니다 (2장 이상)." if name == "YOLO"
+                          else "PatchCore: 정상/간섭 라벨만 있으면 됩니다. 박스는 선택입니다.")
+        self.update_status()
+
+    def problems(self) -> list[str]:
+        return readiness(self.ds, self.algo) if self.algo else ["알고리즘을 고르세요"]
+
+    def update_status(self) -> None:
+        p = self.problems()
+        self.status.setText("준비 완료 — 다음으로 넘어가세요" if not p else "준비 필요: " + " · ".join(p))
+        self.status.setStyleSheet(OK_STYLE if not p else BAD_STYLE)
+
+    def _edited(self) -> None:
+        self.update_status()
+        self.changed.emit()
+
+
+class ParamStep(QWidget):
+    changed = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.algo: str | None = None
+        self.widgets: dict[str, QWidget] = {}
+        self.title = QLabel()
+        self.form_host = QWidget()
+        self.reset_btn = QPushButton("기본값으로")
+        self.reset_btn.clicked.connect(self.reset)
+        v = QVBoxLayout(self)
+        v.addWidget(self.title)
+        v.addWidget(self.form_host)
+        v.addWidget(self.reset_btn, 0, Qt.AlignLeft)
+        v.addStretch()
+
+    def set_algo(self, name: str) -> None:
+        if name == self.algo:
+            return
+        self.algo = name
+        self.title.setText(f"<h3>{name} 파라미터</h3>")
+        old = self.form_host.layout()
+        if old is not None:
+            QWidget().setLayout(old)    # 기존 폼 버리기
+        form = QFormLayout(self.form_host)
+        self.widgets = {}
+        for s in PARAMS[name]:
+            if s.choices:
+                w = QComboBox()
+                w.addItems(list(s.choices))
+                w.currentIndexChanged.connect(lambda _: self.changed.emit())
+            else:
+                w = QSpinBox()
+                w.setRange(s.lo, s.hi)
+                w.setSingleStep(s.step)
+                w.valueChanged.connect(lambda _: self.changed.emit())
+            form.addRow(s.label, w)
+            self.widgets[s.key] = w
+        self.reset()
+
+    def reset(self) -> None:
+        for s in PARAMS[self.algo]:
+            w = self.widgets[s.key]
+            if s.choices:
+                w.setCurrentText(s.default)
+            else:
+                w.setValue(s.default)
+
+    def values(self) -> dict:
+        return {k: (w.currentText() if isinstance(w, QComboBox) else w.value()) for k, w in self.widgets.items()}
+
+
+class Wizard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.step = 0
+        self.algo = AlgoStep()
+        self.data = DataStep()
+        self.params = ParamStep()
+        self.result = ResultView()
+        self.stack = QStackedWidget()
+        for w in (self.algo, self.data, self.params, self.result):
+            self.stack.addWidget(w)
+
+        self.step_labels = [QLabel(t) for t in STEP_TITLES]
+        bar = QHBoxLayout()
+        for lab in self.step_labels:
+            bar.addWidget(lab)
+        bar.addStretch()
+        self.prev_btn = QPushButton("◀ 이전")
+        self.next_btn = QPushButton("다음 ▶")
+        self.prev_btn.clicked.connect(lambda: self.go(self.step - 1))
+        self.next_btn.clicked.connect(lambda: self.go(self.step + 1))
+        nav = QHBoxLayout()
+        nav.addStretch()
+        nav.addWidget(self.prev_btn)
+        nav.addWidget(self.next_btn)
+        v = QVBoxLayout(self)
+        v.addLayout(bar)
+        v.addWidget(self.stack, 1)
+        v.addLayout(nav)
+
+        self.algo.changed.connect(self._algo_changed)
+        self.data.changed.connect(self._edited)
+        self.params.changed.connect(self._edited)
+        self.result.running_changed.connect(lambda _: self._update_nav())
+        self._update_nav()
+
+    # ---- 상태 ----
+    @property
+    def ds(self) -> Dataset | None:
+        return self.data.ds
+
+    def set_dataset(self, ds: Dataset) -> None:
+        self.data.set_dataset(ds)
+        self.result.clear()
+        self._update_nav()
+
+    def _algo_changed(self) -> None:
+        name = self.algo.selected
+        self.data.set_algo(name)
+        self.params.set_algo(name)
+        self.result.clear()
+        self._update_nav()
+
+    def _edited(self) -> None:
+        self.result.clear()
+        self._update_nav()
+
+    def can_leave(self, step: int) -> bool:
+        if step == 0:
+            return self.algo.selected is not None
+        if step == 1:
+            return not self.data.problems()
+        return step == 2
+
+    # ---- 이동 ----
+    def go(self, i: int) -> None:
+        if self.result.running or not 0 <= i < len(STEP_TITLES):
+            return
+        if i == 3:
+            self.result.set_job(self.ds, self.algo.selected, self.params.values())
+        self.step = i
+        self.stack.setCurrentIndex(i)
+        self._update_nav()
+
+    def _update_nav(self) -> None:
+        running = self.result.running
+        self.prev_btn.setEnabled(self.step > 0 and not running)
+        ok = self.can_leave(self.step)
+        self.next_btn.setEnabled(self.step < 3 and ok and not running)
+        self.next_btn.setToolTip("" if ok or self.step != 1 else " · ".join(self.data.problems()))
+        summaries = [self.algo.selected, self.ds.name if self.ds else None, None, None]
+        for k, lab in enumerate(self.step_labels):
+            text = STEP_TITLES[k]
+            if k < self.step and summaries[k]:
+                text = f"{STEP_TITLES[k]}: {summaries[k]} ✓"
+            lab.setText(text)
+            lab.setStyleSheet("padding: 4px 10px; border-radius: 10px; "
+                              + ("background: #3a8; color: white; font-weight: bold;" if k == self.step
+                                 else "background: #e4e4e4; color: #444;"))
