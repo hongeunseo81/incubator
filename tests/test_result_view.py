@@ -168,3 +168,13 @@ def test_result_outline_uses_recorded_shift(qtbot, monkeypatch, tmp_path):
     rect = v.views["원본"].mask_rect()
     assert abs(rect.left() - (224 // 4 + 10)) <= 2 and abs(rect.top() - (224 // 4 - 5)) <= 2
     assert "dx +10" in v.shift_label.text()
+
+
+def test_target_banner_and_header(qtbot, make_view):
+    v, ds = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    assert "SCAN COMPLETE" in v.header.text() and "1 TARGETS" in v.header.text()   # 간섭 3.0 하나만 임계값 이상
+    v.images.selectRow(0)                       # 점수 최고 = 간섭 3.0
+    assert "TARGET LOCKED" in v.banner.text()
+    v.images.selectRow(v.images.rowCount() - 1)  # 최저 = 정상 0.5
+    assert "CLEAR" in v.banner.text()

@@ -5,11 +5,13 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
+from impostor.ui import theme
 from impostor.ui.boxes import normalize_box
 
-GT_COLOR = QColor(0, 220, 0)
-PRED_COLOR = QColor(255, 140, 0)
-MASK_COLOR = QColor(0, 200, 255)
+GT_COLOR = QColor(theme.OK)
+PRED_COLOR = QColor(theme.WARN)
+MASK_COLOR = QColor(theme.ACCENT)
+GRID_STEP = 24
 HEAT_ALPHA = 0.45
 
 
@@ -34,11 +36,13 @@ class ImageCanvas(QGraphicsView):
         self.setScene(QGraphicsScene(self))
         self.setRenderHint(QPainter.SmoothPixmapTransform)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
+        self.setBackgroundBrush(QBrush(QColor(theme.BG)))
+        self.target_items: list = []
         self._img = self._heat = self._mask = self._msg = None
         self._gt: list[QGraphicsRectItem] = []
         self._pred: list = []
         self._drag_start: QPointF | None = None
+        self._locked = False
         self._rubber: QGraphicsRectItem | None = None
         self._pan: QPointF | None = None
         self._size = (0, 0)
@@ -48,6 +52,7 @@ class ImageCanvas(QGraphicsView):
         self.scene().clear()
         self._img = self._heat = self._mask = None
         self._gt, self._pred = [], []
+        self.target_items = []
         self._size = (0, 0)
         if message:
             self._msg = self.scene().addSimpleText(message)
@@ -61,6 +66,45 @@ class ImageCanvas(QGraphicsView):
         self.scene().setSceneRect(QRectF(0, 0, *self._size))
         if first:
             self.fit()
+
+    def drawBackground(self, painter, rect) -> None:
+        # 감시실 화면처럼 청록 격자
+        super().drawBackground(painter, rect)
+        painter.setPen(QPen(QColor(theme.GRID), 0))
+        left = int(rect.left()) - int(rect.left()) % GRID_STEP
+        top = int(rect.top()) - int(rect.top()) % GRID_STEP
+        x = left
+        while x < rect.right():
+            painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
+            x += GRID_STEP
+        y = top
+        while y < rect.bottom():
+            painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
+            y += GRID_STEP
+
+    def target_color(self) -> QColor:
+        return QColor(theme.ALERT if self._locked else theme.ACCENT)
+
+    def set_target(self, point, locked: bool) -> None:
+        """이상 지점에 조준선. NG(locked)면 빨강, 아니면 청록 점선."""
+        for it in self.target_items:
+            self.scene().removeItem(it)
+        self.target_items = []
+        self._locked = locked
+        if point is None or self._img is None:
+            return
+        x, y = point
+        r = max(18.0, min(self._size) * 0.05)
+        pen = QPen(self.target_color(), 3 if locked else 2, Qt.SolidLine if locked else Qt.DashLine)
+        pen.setCosmetic(True)
+        sc = self.scene()
+        self.target_items = [
+            sc.addEllipse(QRectF(x - r, y - r, 2 * r, 2 * r), pen),
+            sc.addLine(x - 1.8 * r, y, x - 0.5 * r, y, pen), sc.addLine(x + 0.5 * r, y, x + 1.8 * r, y, pen),
+            sc.addLine(x, y - 1.8 * r, x, y - 0.5 * r, pen), sc.addLine(x, y + 0.5 * r, x, y + 1.8 * r, pen),
+        ]
+        for it in self.target_items:
+            it.setZValue(6)
 
     def mask_rect(self):
         """그려진 마스크 윤곽의 범위 (없으면 빈 사각형)."""

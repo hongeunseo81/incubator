@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel
 from impostor.align import Aligner, describe, shift_mask
 from impostor.dataset import Dataset, Item, Label, Pin
 from impostor.imageio import imread, load_mask
+from impostor.ui import theme
 from impostor.ui.canvas import ImageCanvas
 from impostor.ui.labels import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, LIST_W, PIN_HELP, PIN_TEXT
 
@@ -87,7 +88,7 @@ class ThumbGrid(QWidget):
         self.preview.setMinimumWidth(400)
         self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         self.shift_label = QLabel()
-        self.shift_label.setStyleSheet("color: gray")
+        self.shift_label.setStyleSheet(f"color: {theme.MUTED}")
         self.shift_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)   # 글자 길이·종류가 레이아웃을 밀지 않게
         self.shift_label.setFixedHeight(self.shift_label.fontMetrics().height() + 6)
         right = QWidget()
@@ -101,7 +102,7 @@ class ThumbGrid(QWidget):
         sl.addWidget(self.view)
         sl.addWidget(right, 1)
         hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · Ctrl/Shift 클릭으로 여러 개 선택 · 간섭 사진은 오른쪽에서 드래그로 박스 그리기, 박스 클릭 후 Delete로 삭제 · 휠 확대/축소 · 가운데 버튼 이동")
-        hint.setStyleSheet("color: gray")
+        hint.setStyleSheet(f"color: {theme.MUTED}")
 
         v = QVBoxLayout(self)
         v.addLayout(top)

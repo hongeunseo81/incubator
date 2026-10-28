@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
 from impostor import dataset as dataset_mod
@@ -10,6 +10,7 @@ from impostor.algorithms import PARAMS, REGISTRY
 from impostor.dataset import Dataset, Label
 from impostor.align import reference_for
 from impostor.readiness import readiness
+from impostor.ui import theme
 from impostor.ui.result_view import ResultView
 from impostor.ui.thumb_grid import ThumbGrid
 
@@ -20,8 +21,8 @@ DESCRIPTIONS = {
     "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
 }
 VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
-OK_STYLE = "color: #2a7a2a"
-BAD_STYLE = "color: #c03030"
+OK_STYLE = f"color: {theme.OK}"
+BAD_STYLE = f"color: {theme.ALERT}"
 
 
 def _row_title(text: str) -> QLabel:
@@ -46,7 +47,7 @@ class AlgoStep(QWidget):
             b.setCheckable(True)
             b.setMinimumSize(320, 160)
             b.setStyleSheet("QPushButton { text-align: left; padding: 12px; } "
-                            "QPushButton:checked { border: 3px solid #3a8; }")
+                            f"QPushButton:checked {{ border: 2px solid {theme.ACCENT}; color: {theme.ACCENT}; }}")
             b.clicked.connect(lambda _=False, n=name: self.select(n))
             row.addWidget(b)
             self.buttons[name] = b
@@ -168,11 +169,11 @@ class DataStep(QWidget):
         self.align_check.setChecked(ref is not None and self.ds.align)
         self.align_check.blockSignals(False)
         if ref is None:
-            state = "<span style='color:#c03030'>위치 보정 안 됨 — 옆에 마스터 이미지가 없음</span>"
+            state = f"<span style='color:{theme.ALERT}'>위치 보정 안 됨 — 옆에 마스터 이미지가 없음</span>"
         elif self.ds.align:
-            state = "<span style='color:#2a7a2a'>위치 보정 켜짐</span>"
+            state = f"<span style='color:{theme.OK}'>위치 보정 켜짐</span>"
         else:
-            state = "<span style='color:gray'>위치 보정 꺼짐</span>"
+            state = f"<span style='color:{theme.MUTED}'>위치 보정 꺼짐</span>"
         self.master_label.setText(state)
 
     def _align_toggled(self, on: bool) -> None:
@@ -265,7 +266,8 @@ class ParamStep(QWidget):
         old = self.form_host.layout()
         if old is not None:
             QWidget().setLayout(old)    # 기존 폼 버리기
-        form = QFormLayout(self.form_host)
+        form = QVBoxLayout(self.form_host)        # 세로로 쌓아야 줄바꿈된 설명이 겹치지 않는다
+        form.setContentsMargins(0, 0, 0, 0)
         self.widgets, self.helps = {}, {}
         for s in PARAMS[name]:
             if s.choices:
@@ -279,10 +281,11 @@ class ParamStep(QWidget):
                 w.valueChanged.connect(lambda _: self.changed.emit())
             hint = QLabel(s.help)
             hint.setWordWrap(True)
-            hint.setStyleSheet("color: gray; font-size: 11px")
-            form.addRow(QLabel(f"<b>{s.label}</b>"))
-            form.addRow(w)
-            form.addRow(hint)
+            hint.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px")
+            form.addWidget(QLabel(f"<b>{s.label}</b>"))
+            form.addWidget(w)
+            form.addWidget(hint)
+            form.addSpacing(10)
             self.widgets[s.key] = w
             self.helps[s.key] = hint
         self.reset()
@@ -421,6 +424,6 @@ class Wizard(QWidget):
             if k < self.step and summaries[k]:
                 text = f"{STEP_TITLES[k]}: {summaries[k]} ✓"
             lab.setText(text)
-            lab.setStyleSheet("padding: 4px 10px; border-radius: 10px; "
-                              + ("background: #3a8; color: white; font-weight: bold;" if k == self.step
-                                 else "background: #e4e4e4; color: #444;"))
+            lab.setStyleSheet("padding: 4px 12px; border-radius: 10px; "
+                              + (f"background: {theme.ACCENT}; color: {theme.BG}; font-weight: bold;" if k == self.step
+                                 else f"background: {theme.PANEL}; color: {theme.MUTED}; border: 1px solid {theme.GRID};"))

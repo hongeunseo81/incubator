@@ -16,13 +16,14 @@ from impostor.metrics import auto_threshold, evaluate
 from impostor.readiness import Snapshot, snapshot
 from impostor.split import SplitError
 from impostor.ui.canvas import ImageCanvas
+from impostor.ui import theme
 from impostor.ui.labels import LABEL_TEXT
 from impostor.ui.worker import RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
 STEPS = 1000
-MISS_BG = QColor(255, 200, 200)
-FP_BG = QColor(255, 225, 170)
+MISS_BG = QColor("#4a1c24")      # 놓침 — 어두운 빨강
+FP_BG = QColor("#4a3618")        # 오검출 — 어두운 주황
 
 
 class ThresholdRow(QWidget):
@@ -79,6 +80,12 @@ class ResultView(QWidget):
         self.mask = None
 
         self.title = QLabel()
+        self.header = QLabel()                 # ■ SCAN COMPLETE · 알고리즘 · 데이터셋        ⚠ N TARGETS
+        self.header.setFont(theme.mono(11, bold=True))
+        self.banner = QLabel()                 # TARGET LOCKED / CLEAR
+        self.banner.setFont(theme.mono(12, bold=True))
+        self.banner.setAlignment(Qt.AlignCenter)
+        self.banner.setFixedHeight(28)
         self.run_btn = QPushButton("실행")
         self.run_btn.clicked.connect(self.run)
         self.stop_btn = QPushButton("중단")
@@ -107,13 +114,14 @@ class ResultView(QWidget):
         self.images.itemSelectionChanged.connect(self._show_selected)
         self.view_row = QHBoxLayout()
         self.shift_label = QLabel()
-        self.shift_label.setStyleSheet("color: gray")
+        self.shift_label.setStyleSheet(f"color: {theme.MUTED}")
         self.shift_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)   # 글자가 사진 영역을 밀지 않게
         self.shift_label.setFixedHeight(self.shift_label.fontMetrics().height() + 6)
         views = QWidget()
         vv = QVBoxLayout(views)
         vv.setContentsMargins(0, 0, 0, 0)
         vv.addLayout(self.view_row, 1)
+        vv.addWidget(self.banner)
         vv.addWidget(self.shift_label)
         bottom = QSplitter()
         bottom.addWidget(self.images)
@@ -122,6 +130,7 @@ class ResultView(QWidget):
 
         v = QVBoxLayout(self)
         v.addLayout(top)
+        v.addWidget(self.header)
         v.addWidget(self.table)
         v.addLayout(self.slider_box)
         v.addWidget(bottom, 1)
@@ -150,6 +159,8 @@ class ResultView(QWidget):
         self._set_views([])
         self.stage.setText("")
         self.bar.setValue(0)
+        self.header.setText("")
+        self._set_banner(None, None)
 
     # ---- 실행 ----
     def run(self) -> None:
@@ -229,6 +240,23 @@ class ResultView(QWidget):
         for c, text in enumerate(cells):
             self.table.setItem(0, c, QTableWidgetItem(text))
         self._color_images()
+        targets = sum(self.res.scores[i.path] >= threshold for i, _ in self.rows)
+        self.header.setText(f"<span style='color:{theme.ACCENT}'>■ SCAN COMPLETE · {self.algo} · {self.snap.ds.name}</span>"
+                            f"&nbsp;&nbsp;&nbsp;<span style='color:{theme.ALERT}'>⚠ {targets} TARGETS</span>")
+        self._show_selected()
+
+    def _set_banner(self, score: float | None, threshold: float | None) -> None:
+        if score is None:
+            self.banner.setText("")
+            self.banner.setStyleSheet("background: transparent")
+            return
+        if score >= threshold:
+            self.banner.setText(f"TARGET LOCKED — 점수 {score:.3g} ≥ {threshold:.3g}")
+            self.banner.setStyleSheet(f"background: {theme.ALERT}; color: {theme.BG}; border-radius: 4px")
+        else:
+            self.banner.setText(f"CLEAR — 점수 {score:.3g} < {threshold:.3g}")
+            self.banner.setStyleSheet(f"background: transparent; color: {theme.ACCENT}; "
+                                      f"border: 1px solid {theme.ACCENT}; border-radius: 4px")
 
     # ---- 이미지 ----
     def _fill_images(self) -> None:
@@ -272,6 +300,9 @@ class ResultView(QWidget):
             for c in self.views.values():
                 c.clear_all(str(e))
             return
+        score = self.res.scores[it.path]
+        locked = score >= self.threshold
+        self._set_banner(score, self.threshold)
         vals = np.array(list(self.res.scores.values()))
         s = self.res.shifts.get(it.path)
         mask = shift_mask(self.mask, s[0], s[1]) if (s is not None and self.mask is not None) else self.mask
@@ -285,3 +316,4 @@ class ResultView(QWidget):
                 if it.path in self.res.pred_boxes:
                     canvas.set_pred_boxes(self.res.pred_boxes[it.path])
             canvas.set_boxes(it.boxes)
+            canvas.set_target(self.res.peaks.get(it.path), locked)

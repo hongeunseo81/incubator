@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog
 
 from impostor import dataset as dataset_mod
 from impostor.dataset import Dataset, Label, find_image_kinds, find_mask_for, import_folders, scan_dataset
+from impostor.ui import theme
 from impostor.ui.labels import LABEL_TEXT
 
 EXCLUDE = ["master"]   # Master 폴더의 마스터 이미지가 차량 데이터에 섞이지 않게 항상 뺀다
@@ -173,7 +174,7 @@ class ScanDialog(_Base):
         ds = self.build()
         lines = [f"이미지 {len(ds.items)}장 (회차 폴더 {len({i.group for i in ds.items})}개) — 처음엔 전부 미분류로 들어갑니다"]
         if not (self.mask.text() and Path(self.mask.text()).is_file()):
-            lines.append("<span style='color:#c03030'>마스터 파일을 찾지 못했습니다 — 직접 고르세요</span>")
+            lines.append(f"<span style='color:{theme.ALERT}'>마스터 파일을 찾지 못했습니다 — 직접 고르세요</span>")
         self.result_info.setText("<br>".join(lines))
 
 

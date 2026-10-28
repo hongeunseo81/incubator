@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBo
 
 from impostor.dataset import DATASET_DIR, Dataset, load_dataset, save_dataset
 from impostor.ui.dataset_dialogs import ImportDialog, ScanDialog
+from impostor.ui import theme
 from impostor.ui.wizard import Wizard
 
 APP_NAME = "Impostor"
@@ -127,6 +128,7 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication.instance() or QApplication(sys.argv)
+    theme.apply(app)
     w = MainWindow()
     w.show()
     sys.exit(app.exec())
