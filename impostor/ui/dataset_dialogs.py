@@ -1,9 +1,12 @@
 """데이터셋 만들기 대화상자: 폴더 스캔 / 정리된 폴더 가져오기."""
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QVBoxLayout, QWidget)
+                               QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QToolButton, QVBoxLayout,
+                               QWidget)
 
+from impostor import dataset as dataset_mod
 from impostor.dataset import Dataset, Label, find_image_kinds, find_mask_for, import_folders, scan_dataset
 from impostor.ui.label_tab import LABEL_TEXT
 
@@ -39,8 +42,6 @@ class _Base(QDialog):
         self.root = QLineEdit()
         self.mask = QLineEdit()
         self.form = QFormLayout()
-        self.form.addRow("이름", self.name)
-        self.form.addRow("루트 폴더", _path_row(self.root, self._pick_root))
         self.result_info = QLabel()
         self.result_info.setWordWrap(True)
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -49,6 +50,8 @@ class _Base(QDialog):
         self.dataset: Dataset | None = None
 
     def _layout(self, *extra: QWidget) -> None:
+        self.form.insertRow(0, "이름", self.name)
+        self.form.insertRow(1, "루트 폴더", _path_row(self.root, self._pick_root))
         self.form.addRow("마스크 파일", _path_row(self.mask, self._pick_mask))
         v = QVBoxLayout(self)
         v.addLayout(self.form)
@@ -95,20 +98,61 @@ class _Base(QDialog):
         self.accept()
 
 
+def unique_name(base: str) -> str:
+    """저장된 데이터셋과 이름이 겹치지 않게 _2, _3 … 을 붙인다 (덮어쓰기 방지)."""
+    d = Path(dataset_mod.DATASET_DIR)
+    name, k = base, 2
+    while (d / f"{name}.json").exists():
+        name, k = f"{base}_{k}", k + 1
+    return name
+
+
 class ScanDialog(_Base):
-    """원본 스캔 폴더를 깊이와 상관없이 훑는다. 그룹 = 이미지가 들어 있는 회차 폴더."""
+    """원본 스캔 폴더를 깊이와 상관없이 훑는다. 루트 폴더만 고르면 나머지는 자동으로 채운다.
+    그룹 = 이미지가 들어 있는 회차 폴더."""
 
     def __init__(self, parent=None):
         super().__init__("새 데이터셋 (원본 폴더 스캔)", parent)
+        self.resize(640, 220)
+        self._name_edited = False
+        self.name.textEdited.connect(lambda _: setattr(self, "_name_edited", True))
         self.exclude = QLineEdit(DEFAULT_EXCLUDE)
         self.exclude.setToolTip("폴더 이름에 이 단어가 들어 있으면 뺍니다 (쉼표로 여러 개, 예: master, calib)")
         self.exclude.editingFinished.connect(lambda: self.set_root(self.root.text()))
         self.kind = QComboBox()
         self.kind.setToolTip("회차 폴더마다 있는 카메라 이미지 중 어떤 것을 볼지")
         self.kind.currentIndexChanged.connect(lambda _: self._kind_changed())
-        self.form.addRow("제외할 폴더", self.exclude)
-        self.form.addRow("카메라 이미지", self.kind)
-        self._layout()
+        self.mask.editingFinished.connect(self.preview)
+
+        top = QFormLayout()
+        top.addRow("원본 루트 폴더", _path_row(self.root, self._pick_root))
+        self.toggle = QToolButton()
+        self.toggle.setText("세부 설정 (이름·카메라·마스크·제외 폴더)")
+        self.toggle.setCheckable(True)
+        self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle.setArrowType(Qt.RightArrow)
+        self.toggle.toggled.connect(self._show_details)
+        self.details = QWidget()
+        f = QFormLayout(self.details)
+        f.setContentsMargins(16, 0, 0, 0)
+        f.addRow("이름", self.name)
+        f.addRow("카메라 이미지", self.kind)
+        f.addRow("마스크 파일", _path_row(self.mask, self._pick_mask))
+        f.addRow("제외할 폴더", self.exclude)
+        self.details.hide()
+
+        v = QVBoxLayout(self)
+        v.addLayout(top)
+        v.addWidget(self.result_info)
+        v.addWidget(self.toggle)
+        v.addWidget(self.details)
+        v.addStretch()
+        v.addWidget(self.buttons)
+
+    def _show_details(self, on: bool) -> None:
+        self.toggle.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self.details.setVisible(on)
+        self.adjustSize()
 
     def excludes(self) -> list[str]:
         return [w.strip() for w in self.exclude.text().split(",") if w.strip()]
@@ -121,13 +165,14 @@ class ScanDialog(_Base):
             self.kind.addItem(f"{name}  ({n}장)", name)
         self.kind.setCurrentIndex(0)      # 가장 많은 것 = 보통 검사 카메라
         self.kind.blockSignals(False)
-        if not self.name.text() and Path(d).is_dir():
-            self.name.setText(Path(d).name)
         self._kind_changed()
 
     def _kind_changed(self) -> None:
-        # 같은 카메라의 마스터 마스크를 찾아 채운다 (직접 고른 값이 있어도 카메라를 바꾸면 다시 제안)
         kind = self.kind.currentData()
+        if kind and not self._name_edited:
+            camera = kind.replace("_IMG_Texture_8Bit.png", "")
+            self.name.setText(unique_name(f"{Path(self.root.text()).name}_{camera}"))
+        # 같은 카메라의 마스터 마스크를 찾아 채운다
         m = find_mask_for(self.root.text(), kind) if kind else None
         if m:
             self.mask.setText(m)
@@ -139,12 +184,20 @@ class ScanDialog(_Base):
                             self.excludes())
 
     def preview(self) -> None:
-        if not self.kind.currentData():
+        kind = self.kind.currentData()
+        if not kind:
             self.result_info.setText("루트 폴더에서 *Texture_8Bit.png 이미지를 찾지 못했습니다" if self.root.text() else "")
             return
         ds = self.build()
-        groups = len({i.group for i in ds.items})
-        self.result_info.setText(f"찾은 이미지 {len(ds.items)}장 (회차 폴더 {groups}개) — 처음엔 전부 미분류로 들어갑니다")
+        lines = [f"<b>{kind.replace('_IMG_Texture_8Bit.png', '')}</b> 이미지 {len(ds.items)}장"
+                 f" (회차 폴더 {len({i.group for i in ds.items})}개) → 데이터셋 <b>{self.name.text()}</b>"]
+        if self.mask.text() and Path(self.mask.text()).is_file():
+            lines.append(f"마스크: {self.mask.text()}")
+        else:
+            lines.append("<span style='color:#c03030'>마스크를 찾지 못했습니다 — 세부 설정에서 마스크 파일을 고르세요</span>")
+            self.toggle.setChecked(True)
+        lines.append("처음엔 전부 미분류로 들어갑니다")
+        self.result_info.setText("<br>".join(lines))
 
 
 class ImportDialog(_Base):

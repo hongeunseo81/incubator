@@ -183,3 +183,49 @@ def test_box_tab_hidden_for_patchcore(qtbot, small_ds):
     assert s.views.currentWidget() is s.grid
     s.set_algo("YOLO")
     assert s.views.isTabVisible(box_tab)
+
+
+def _fem_like_root(tmp_path):
+    import numpy as np
+    from tests.conftest import make_mask, write_png
+    root = tmp_path / "clip"
+    img = np.zeros((48, 64, 3), np.uint8)
+    for k in range(3):
+        write_png(root / "Source" / f"car{k}" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(root / "Master" / "JG" / "fastenLHCam_02_IMG_Kungfu.png", make_mask(64, 48))
+    return root
+
+
+def test_scan_dialog_only_root_needed(qtbot, tmp_path, monkeypatch):
+    from impostor.ui.dataset_dialogs import ScanDialog
+    d = ScanDialog()
+    qtbot.addWidget(d)
+    assert not d.details.isVisible() and d.details.isHidden()
+    d.set_root(str(_fem_like_root(tmp_path)))
+    assert d.name.text() == "clip_fastenLHCam_02"
+    assert "3장" in d.result_info.text() and "fastenLHCam_02_IMG_Kungfu.png" in d.result_info.text()
+    d._accept()
+    assert d.dataset is not None and len(d.dataset.items) == 3
+
+
+def test_scan_dialog_opens_details_when_no_mask(qtbot, tmp_path):
+    import numpy as np
+    from tests.conftest import write_png
+    from impostor.ui.dataset_dialogs import ScanDialog
+    write_png(tmp_path / "r" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", np.zeros((4, 4, 3), np.uint8))
+    d = ScanDialog()
+    qtbot.addWidget(d)
+    d.set_root(str(tmp_path / "r"))
+    assert not d.details.isHidden() and "마스크를 찾지 못했습니다" in d.result_info.text()
+
+
+def test_scan_name_avoids_overwrite(qtbot, tmp_path, monkeypatch):
+    from impostor import dataset as dataset_mod
+    from impostor.ui.dataset_dialogs import ScanDialog
+    monkeypatch.setattr(dataset_mod, "DATASET_DIR", tmp_path / "saved")
+    (tmp_path / "saved").mkdir()
+    (tmp_path / "saved" / "clip_fastenLHCam_02.json").write_text("{}")
+    d = ScanDialog()
+    qtbot.addWidget(d)
+    d.set_root(str(_fem_like_root(tmp_path)))
+    assert d.name.text() == "clip_fastenLHCam_02_2"
