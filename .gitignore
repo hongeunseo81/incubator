@@ -4,3 +4,4 @@ __pycache__/
 .superpowers/
 runs/
 *.pt
+*.egg-info/
