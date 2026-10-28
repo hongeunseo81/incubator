@@ -62,3 +62,73 @@ def test_missing_file_does_not_crash(qtbot, small_ds):
     qtbot.addWidget(tab)
     tab.set_dataset(small_ds)
     assert "파일 없음" in tab.list.item(0).text()
+
+
+# ---- Task 7: 메인 창 ----
+from PySide6.QtWidgets import QMessageBox
+
+from impostor.dataset import save_dataset
+from impostor.ui.app import MainWindow
+from impostor.ui.dataset_dialogs import ImportDialog, default_label_for
+
+
+@pytest.fixture
+def main_window(qtbot, monkeypatch):
+    # 정리 단계에서 창을 닫을 때 "저장할까요?" 모달이 테스트를 멈추지 않도록
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Discard)
+    w = MainWindow()
+    qtbot.addWidget(w)
+    return w
+
+
+def test_main_window_opens(main_window):
+    assert main_window.windowTitle().startswith("Impostor")
+
+
+def test_open_dataset_warns_missing(main_window, small_ds, tmp_path, monkeypatch):
+    p = tmp_path / "t.json"
+    save_dataset(small_ds, p)
+    os.remove(small_ds.items[0].path)
+    seen = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: seen.append(a[2]))
+    main_window.open_dataset(str(p))
+    assert main_window.dataset.name == "t"
+    assert seen and "찾을 수 없습니다" in seen[0]
+
+
+def test_dirty_marker(qtbot, main_window, small_ds):
+    main_window.set_dataset(small_ds)
+    assert "*" not in main_window.windowTitle()
+    qtbot.keyClick(main_window.label_tab.list, Qt.Key_N)
+    assert "*" in main_window.windowTitle()
+
+
+def test_save_clears_dirty(qtbot, main_window, small_ds, tmp_path, monkeypatch):
+    monkeypatch.setattr("impostor.ui.app.DATASET_DIR", tmp_path)
+    main_window.set_dataset(small_ds)
+    qtbot.keyClick(main_window.label_tab.list, Qt.Key_N)
+    main_window.save()
+    assert (tmp_path / "t.json").exists() and "*" not in main_window.windowTitle()
+
+
+def test_import_default_labels():
+    assert default_label_for("normal") is Label.NORMAL
+    assert default_label_for("inside") is Label.INTERFERENCE
+    assert default_label_for("edge") is Label.INTERFERENCE
+    assert default_label_for("minor") is Label.UNLABELED
+
+
+def test_import_dialog_builds_dataset(qtbot, tmp_path):
+    import numpy as np
+    from tests.conftest import write_png
+    img = np.zeros((48, 64, 3), np.uint8)
+    write_png(tmp_path / "data" / "normal" / "a__LH.png", img)
+    write_png(tmp_path / "data" / "inside" / "b__LH.png", img)
+    d = ImportDialog()
+    qtbot.addWidget(d)
+    d.name.setText("fem")
+    d.set_root(str(tmp_path / "data"))
+    d.name_glob.setText("*__LH.png")
+    d.mask.setText(str(tmp_path / "m.png"))
+    ds = d.build()
+    assert ds.name == "fem" and sorted(i.label for i in ds.items) == sorted([Label.NORMAL, Label.INTERFERENCE])
