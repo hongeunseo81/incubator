@@ -10,7 +10,7 @@ from impostor.ui.dataset_dialogs import ImportDialog, ScanDialog
 from impostor.ui import theme
 from impostor.ui.wizard import Wizard
 
-APP_NAME = "Impostor"
+APP_NAME = "Incubator"
 
 
 class MainWindow(QMainWindow):

@@ -28,7 +28,7 @@ def main_window(qtbot, monkeypatch):
 
 
 def test_main_window_opens(main_window):
-    assert main_window.windowTitle().startswith("Impostor")
+    assert main_window.windowTitle().startswith("Incubator")
 
 
 def test_open_dataset_warns_missing(main_window, small_ds, tmp_path, monkeypatch):
