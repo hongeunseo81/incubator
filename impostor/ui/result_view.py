@@ -18,7 +18,7 @@ from impostor.ui.canvas import ImageCanvas
 from impostor.ui.label_tab import LABEL_TEXT
 from impostor.ui.worker import RunWorker
 
-COLUMNS = ["알고리즘", "놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
+COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
 STEPS = 1000
 MISS_BG = QColor(255, 200, 200)
 FP_BG = QColor(255, 225, 170)
@@ -190,10 +190,9 @@ class ResultView(QWidget):
     def _done(self, res: AlgoResult) -> None:
         self.res = res
         self.table.setRowCount(1)
-        self.table.setItem(0, 0, QTableWidgetItem(self.algo))
         if res.skipped:
-            self.table.setItem(0, 1, QTableWidgetItem(res.skipped))
-            self.table.setSpan(0, 1, 1, len(COLUMNS) - 1)
+            self.table.setItem(0, 0, QTableWidgetItem(res.skipped))
+            self.table.setSpan(0, 0, 1, len(COLUMNS))
             self.stage.setText(res.skipped)
             return
         interf, thresh, test = eval_items(self.snap.ds, self.snap.split)
@@ -216,7 +215,7 @@ class ResultView(QWidget):
         test = [i for i, lab in self.rows if lab is Label.NORMAL]
         m = evaluate({i.path: res.scores[i.path] for i in interf}, {i.path: res.scores[i.path] for i in test},
                      threshold, res.peaks, {i.path: i.boxes for i in interf})
-        cells = [self.algo, f"{m.missed}/{m.n_interference}", f"{m.false_pos}/{m.n_normal_test}",
+        cells = [f"{m.missed}/{m.n_interference}", f"{m.false_pos}/{m.n_normal_test}",
                  "-" if m.auc is None else f"{m.auc:.3f}", f"{m.threshold:.4g}",
                  f"{m.hit}/{m.n_hit_eval}" if m.n_hit_eval else "-", f"{res.sec_per_image * 1000:.0f} ms"]
         for c, text in enumerate(cells):

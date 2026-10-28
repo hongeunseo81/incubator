@@ -140,3 +140,10 @@ def test_run_split_error_shown(qtbot, monkeypatch, tmp_path):
     v.set_job(make_synthetic(tmp_path, n_normal=1, n_boxed=2), "Fake", {})
     v.run_btn.click()
     assert not v.running and "최소 3개" in table_text(v)
+
+
+def test_no_algorithm_column(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    headers = [v.table.horizontalHeaderItem(c).text() for c in range(v.table.columnCount())]
+    assert "알고리즘" not in headers and headers[0] == "놓침"
