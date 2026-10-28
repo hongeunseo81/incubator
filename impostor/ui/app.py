@@ -30,7 +30,9 @@ class MainWindow(QMainWindow):
         self.wizard.result.running_changed.connect(self._running)
         self.setCentralWidget(self.wizard)
 
-        self.menu = menu = self.menuBar().addMenu("데이터셋")
+        # 메뉴바는 숨긴다(데이터셋 카드에 같은 버튼이 있다). 단축키만 창에 남긴다.
+        self.menuBar().hide()
+        self.shortcut_actions = []
         for text, slot, key in (("새로 만들기 (폴더 스캔)…", self.new_scan, None),
                                 ("폴더 가져오기…", self.new_import, None),
                                 ("열기…", self.open_dialog, QKeySequence.Open),
@@ -39,7 +41,8 @@ class MainWindow(QMainWindow):
             a.triggered.connect(slot)
             if key is not None:
                 a.setShortcut(key)
-            menu.addAction(a)
+            self.addAction(a)
+            self.shortcut_actions.append(a)
         self._update_title()
 
     # ---- 상태 ----
@@ -58,8 +61,7 @@ class MainWindow(QMainWindow):
 
     def _running(self, running: bool) -> None:
         # 실행 중에는 데이터셋을 바꾸거나 다시 열 수 없다
-        self.menu.setEnabled(not running)
-        for a in self.menu.actions():       # 단축키(Ctrl+O/S)도 확실히 막는다
+        for a in self.shortcut_actions:       # 단축키(Ctrl+O/S)도 막는다
             a.setEnabled(not running)
         for b in self.wizard.data.bar_buttons + self.wizard.data.bar_buttons_extra + [self.wizard.data.saved]:
             b.setEnabled(not running)

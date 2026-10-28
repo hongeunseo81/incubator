@@ -22,7 +22,6 @@ DESCRIPTIONS = {
 }
 CARD_W, CARD_H = 440, 280   # 알고리즘 카드 크기
 VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
-OK_STYLE = f"color: {theme.OK}"
 BAD_STYLE = f"color: {theme.ALERT}"
 
 
@@ -30,13 +29,13 @@ def section(title: str) -> tuple[QFrame, QVBoxLayout]:
     """제목이 붙은 테두리 카드. (카드, 안쪽 레이아웃)"""
     frame = QFrame()
     frame.setObjectName("section")
-    frame.setStyleSheet(f"QFrame#section {{ background: {theme.PANEL_2}; border: 1px solid {theme.GRID}; "
-                        f"border-radius: 8px; }}")
+    frame.setStyleSheet(f"QFrame#section {{ background: {theme.PANEL_2}; border: 1px solid {theme.EDGE}; "
+                        f"border-top: 3px solid {theme.ACCENT}; border-radius: 8px; }}")
     v = QVBoxLayout(frame)
     v.setContentsMargins(14, 10, 14, 12)
     v.setSpacing(8)
     head = QLabel(title)
-    head.setStyleSheet(f"color: {theme.ACCENT}; font-weight: bold; font-family: {theme.MONO}; "
+    head.setStyleSheet(f"color: {theme.ACCENT}; font-weight: bold; font-size: 15px; font-family: {theme.MONO}; "
                        f"background: transparent; border: 0;")
     v.addWidget(head)
     return frame, v
@@ -109,6 +108,7 @@ class AlgoStep(QWidget):
 class DataStep(QWidget):
     changed = Signal()
     open_requested = Signal(str)
+    status_changed = Signal()
     new_scan_requested = Signal()
     import_requested = Signal()
     save_requested = Signal()
@@ -133,7 +133,6 @@ class DataStep(QWidget):
             bar.addWidget(b)
             self.bar_buttons.append(b)
         bar.addStretch()
-        self.hint = QLabel()
         # 데이터셋 줄과 같은 모양: 이름표 · 값 · 버튼 · (체크) · 상태
         self.master_path = QLineEdit()
         self.master_path.setReadOnly(True)
@@ -154,22 +153,17 @@ class DataStep(QWidget):
         master_row.addStretch()
         self.grid = ThumbGrid()
         self.grid.changed.connect(self._edited)
-        self.status = QLabel()
-        self.status.setWordWrap(True)
         data_box, dv = section("■ 데이터셋")
         dv.addLayout(bar)
         dv.addLayout(master_row)
-        dv.addWidget(self.hint)
         label_box, lv = section("■ 라벨링")
         lv.addWidget(self.grid, 1)
         self.sections = {"데이터셋": data_box, "라벨링": label_box}
-        self.status.setStyleSheet(OK_STYLE)
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 8, 0, 0)
         v.setSpacing(10)
         v.addWidget(data_box)
         v.addWidget(label_box, 1)
-        v.addWidget(self.status)
         self.refresh_saved()
         self.update_status()
 
@@ -219,12 +213,7 @@ class DataStep(QWidget):
         self.align_check.setEnabled(ref is not None)
         self.align_check.setChecked(ref is not None and self.ds.align)
         self.align_check.blockSignals(False)
-        if ref is None:
-            state = f"<span style='color:{theme.ALERT}'>위치 보정 안 됨 — 옆에 마스터 이미지가 없음</span>"
-        elif self.ds.align:
-            state = f"<span style='color:{theme.OK}'>위치 보정 켜짐</span>"
-        else:
-            state = f"<span style='color:{theme.MUTED}'>위치 보정 꺼짐</span>"
+        state = "" if ref is not None else f"<span style='color:{theme.ALERT}'>위치 보정 안 됨 — 옆에 마스터 이미지가 없음</span>"
         self.master_label.setText(state)
 
     def _align_toggled(self, on: bool) -> None:
@@ -251,9 +240,6 @@ class DataStep(QWidget):
 
     def set_algo(self, name: str | None) -> None:
         self.algo = name
-        self.hint.setText("YOLO: 간섭 사진을 고르고 오른쪽 사진 위에 드래그해서 이물에 박스를 그리세요 (2장 이상)."
-                          if name == "YOLO" else
-                          "PatchCore: 목록에서 정상/간섭만 나누면 됩니다 (정상으로 학습, 간섭으로 채점). 박스는 선택.")
         self.update_status()
 
     def problems(self) -> list[str]:
@@ -270,9 +256,8 @@ class DataStep(QWidget):
         return p
 
     def update_status(self) -> None:
-        p = self.problems()
-        self.status.setText("준비 완료 — 위쪽 ③ 실행·결과 탭을 누르세요" if not p else "준비 필요: " + " · ".join(p))
-        self.status.setStyleSheet(OK_STYLE if not p else BAD_STYLE)
+        """준비 문제는 마법사가 탭 옆에 보여준다 — 여기서는 바뀌었다는 것만 알린다."""
+        self.status_changed.emit()
 
     def _params_changed(self) -> None:
         # 실행 화면 안에서 바꾸므로 바로 결과 화면에 반영 (값이 달라지면 이전 결과는 지워진다)
@@ -389,8 +374,8 @@ class Wizard(QWidget):
         bar.addStretch()
         self.step_bar = QFrame()                  # 단계 탭 띠 — 화면 내용과 분리
         self.step_bar.setObjectName("stepBar")
-        self.step_bar.setStyleSheet(f"QFrame#stepBar {{ background: {theme.PANEL}; "
-                                    f"border-bottom: 2px solid {theme.GRID}; }}")
+        self.step_bar.setStyleSheet(f"QFrame#stepBar {{ background: {theme.PANEL_2}; "
+                                    f"border-bottom: 2px solid {theme.ACCENT}; }}")
         self.step_bar.setLayout(bar)
         bar.setContentsMargins(12, 8, 12, 8)
         body = QWidget()
@@ -406,6 +391,7 @@ class Wizard(QWidget):
         self.algo.changed.connect(self._algo_changed)
         self.algo.picked.connect(lambda: self.go(1))
         self.data.changed.connect(self._edited)
+        self.data.status_changed.connect(self._update_nav)
         self.params.changed.connect(self._params_changed)
         self.result.running_changed.connect(self._running)
         self._update_nav()

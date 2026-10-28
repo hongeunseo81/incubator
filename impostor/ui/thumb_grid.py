@@ -80,12 +80,14 @@ class ThumbGrid(QWidget):
         self.view = QListWidget()
         self.view.setFixedWidth(LIST_W)      # 목록 폭 고정 → 미리보기 크기가 바뀌지 않는다
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.view.setToolTip("N 정상 · I 간섭 · U 미분류 · Ctrl/Shift 클릭으로 여러 개 선택")
         self.view.currentRowChanged.connect(self._preview)
         self.view.installEventFilter(self)
         self.preview = ImageCanvas()     # 휠 확대·축소, 가운데 버튼 이동. 확대 상태는 다음 이미지에도 유지
         self.preview.box_added.connect(self._box_added)       # 간섭 사진이면 바로 박스 그리기
         self.preview.box_deleted.connect(self._box_deleted)
         self.preview.setMinimumWidth(400)
+        self.preview.setToolTip("간섭 사진: 드래그로 박스, 박스 클릭 후 Delete로 삭제 · 휠 확대/축소 · 가운데 버튼 이동")
         self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         self.shift_label = QLabel()
         self.shift_label.setStyleSheet(f"color: {theme.MUTED}")
@@ -101,13 +103,10 @@ class ThumbGrid(QWidget):
         sl.setContentsMargins(0, 0, 0, 0)
         sl.addWidget(self.view)
         sl.addWidget(right, 1)
-        hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · Ctrl/Shift 클릭으로 여러 개 선택 · 간섭 사진은 오른쪽에서 드래그로 박스 그리기, 박스 클릭 후 Delete로 삭제 · 휠 확대/축소 · 가운데 버튼 이동")
-        hint.setStyleSheet(f"color: {theme.MUTED}")
 
         v = QVBoxLayout(self)
         v.addLayout(top)
         v.addWidget(sp, 1)
-        v.addWidget(hint)
 
     # ---- 데이터 ----
     def set_dataset(self, ds: Dataset) -> None:

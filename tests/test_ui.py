@@ -186,7 +186,7 @@ def test_data_step_shows_and_changes_master_file(qtbot, tmp_path):
     with qtbot.waitSignal(s.changed, timeout=1000):
         s.set_mask_path(real_mask)
     assert ds.mask_path == real_mask
-    assert "위치 보정 켜짐" in s.master_label.text()
+    assert s.master_label.text() == ""        # 정상이면 문구 없음
     assert s.grid.aligner is not None
 
 
@@ -232,3 +232,13 @@ def test_data_step_is_split_into_sections(qtbot, small_ds):
     w = Wizard()
     qtbot.addWidget(w)
     assert w.step_bar.objectName() == "stepBar" and all(w.step_bar.isAncestorOf(t) for t in w.tabs)
+
+
+def test_main_window_has_no_menu_bar_but_keeps_shortcuts(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    from impostor.ui.app import MainWindow
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Discard)
+    w = MainWindow()
+    qtbot.addWidget(w)
+    assert w.menuBar().isHidden()
+    assert any(a.shortcut().toString() == "Ctrl+S" for a in w.actions())

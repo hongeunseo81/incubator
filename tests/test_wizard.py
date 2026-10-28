@@ -44,12 +44,12 @@ def test_result_tab_blocked_without_boxes(wizard, tmp_path):
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=0, n_boxless=2))
     tab(wizard, 2)
     assert wizard.step == 1 and not wizard.tabs[2].isEnabled()
-    assert "2장 이상" in wizard.data.status.text() and "2장 이상" in wizard.reason.text()
+    assert "2장 이상" in wizard.reason.text()
 
 
 def test_result_tab_blocked_without_dataset(wizard):
     choose(wizard, "PatchCore")
-    assert not wizard.tabs[2].isEnabled() and "데이터셋을 고르세요" in wizard.data.status.text()
+    assert not wizard.tabs[2].isEnabled() and "데이터셋을 고르세요" in wizard.reason.text()
 
 
 def test_patchcore_flow_reaches_result(wizard, tmp_path):
@@ -145,7 +145,7 @@ def test_opening_unready_dataset_at_result_goes_back(wizard, tmp_path):
     wizard.go(2)
     assert wizard.step == 2
     wizard.set_dataset(make_synthetic(tmp_path / "b", n_normal=1, n_boxed=2))
-    assert wizard.step == 1 and "최소 3개" in wizard.data.status.text()
+    assert wizard.step == 1 and "최소 3개" in wizard.reason.text()
 
 
 def test_opening_ready_dataset_at_result_rebinds(wizard, tmp_path):
@@ -165,7 +165,7 @@ def test_size_mismatch_shown_in_status(wizard, tmp_path):
     write_png(Path(ds.items[0].path), np.zeros((50, 50, 3), np.uint8))
     choose(wizard, "PatchCore")
     wizard.set_dataset(ds)
-    assert "크기가 다른 이미지 1개" in wizard.data.status.text()
+    assert "크기가 다른 이미지 1개" in wizard.reason.text()
 
 
 def test_size_mismatch_cleared_by_unlabeling(wizard, tmp_path):
@@ -178,7 +178,7 @@ def test_size_mismatch_cleared_by_unlabeling(wizard, tmp_path):
     wizard.set_dataset(ds)
     wizard.data.grid.view.setCurrentRow(0)
     wizard.data.grid.label_current(Label.UNLABELED)     # 첫 항목 = 크기 다른 이미지
-    assert "크기가 다른" not in wizard.data.status.text()
+    assert "크기가 다른" not in wizard.reason.text()
 
 
 def test_reason_shown_next_to_tabs(wizard):
@@ -220,3 +220,9 @@ def test_param_help_shown(wizard, tmp_path):
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
     wizard.go(2)
     assert "오검출" in wizard.params.help_text("coreset")
+
+
+def test_no_redundant_texts(wizard):
+    from impostor.ui.wizard import DataStep
+    d = wizard.data
+    assert not hasattr(d, "status") and not hasattr(d, "hint")
