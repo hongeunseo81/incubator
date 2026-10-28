@@ -130,3 +130,26 @@ def test_list_usage_hidden_for_interference(qtbot, grid):
     assert g.pin_box.isHidden()
     g.buttons[Label.NORMAL].click()
     assert not g.pin_box.isHidden()
+
+
+def test_list_usage_shows_auto_by_default_and_reflects_choice(qtbot, grid):
+    from impostor.dataset import Pin
+    g, ds = grid
+    select(g, [0])
+    g.buttons[Label.NORMAL].click()
+    g.view.setCurrentRow(0)
+    assert g.pin_buttons[Pin.NONE].isChecked() and not g.pin_buttons[Pin.TRAIN].isChecked()
+    g.pin_buttons[Pin.TRAIN].click()
+    assert g.pin_buttons[Pin.TRAIN].isChecked() and not g.pin_buttons[Pin.NONE].isChecked()
+
+
+def test_same_wording_in_both_views(qtbot, grid):
+    from PySide6.QtWidgets import QLabel
+    from impostor.ui.label_tab import LabelTab
+    g, ds = grid
+    tab = LabelTab()
+    qtbot.addWidget(tab)
+    texts_g = {w.text() for w in g.findChildren(QLabel)}
+    texts_t = {w.text() for w in tab.findChildren(QLabel)}
+    assert "선택한 항목을" in texts_g and "선택한 항목을" in texts_t
+    assert "이 사진을" not in texts_t

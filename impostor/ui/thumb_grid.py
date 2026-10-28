@@ -69,6 +69,7 @@ class ThumbGrid(QWidget):
         self.pin_buttons: dict[Pin, QPushButton] = {}
         for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL):
             b = QPushButton(PIN_TEXT[p])
+            b.setCheckable(True)                 # 지금 보는 사진의 용도가 눌린 모양 (기본 자동)
             b.setToolTip(PIN_HELP)
             b.clicked.connect(lambda _=False, pp=p: self.apply_pin(pp))
             pb.addWidget(b)
@@ -157,7 +158,7 @@ class ThumbGrid(QWidget):
             return
         it = self.shown[row]
         self.preview_path = it.path
-        self.pin_box.setVisible(it.label is Label.NORMAL)
+        self._show_usage(it)
         try:
             img = imread(it.path)
         except OSError as e:
@@ -193,9 +194,7 @@ class ThumbGrid(QWidget):
             for r in rows:
                 self._decorate(r)
             self._update_counts()
-            cur = self.view.currentRow()
-            if 0 <= cur < len(self.shown):
-                self.pin_box.setVisible(self.shown[cur].label is Label.NORMAL)
+            self._show_current_usage()
         else:
             self._refill()
         self.changed.emit()
@@ -207,7 +206,18 @@ class ThumbGrid(QWidget):
         for r in rows:
             self.shown[r].pin = pin
             self._decorate(r)
+        self._show_current_usage()
         self.changed.emit()
+
+    def _show_usage(self, it: Item) -> None:
+        self.pin_box.setVisible(it.label is Label.NORMAL)
+        for p, b in self.pin_buttons.items():
+            b.setChecked(p is it.pin)
+
+    def _show_current_usage(self) -> None:
+        cur = self.view.currentRow()
+        if 0 <= cur < len(self.shown):
+            self._show_usage(self.shown[cur])
 
     def rest_to_normal(self) -> None:
         if self.ds is not None and self.ds.unlabeled_to_normal():

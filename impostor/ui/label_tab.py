@@ -41,7 +41,7 @@ class LabelTab(QWidget):
         top.addWidget(self.filter)
         top.addWidget(self.counts)
         top.addStretch()
-        top.addWidget(QLabel("이 사진을"))
+        top.addWidget(QLabel("선택한 항목을"))
         self.label_buttons = {}
         for lab, key in ((Label.NORMAL, "N"), (Label.INTERFERENCE, "I"), (Label.UNLABELED, "U")):
             b = QPushButton(f"{LABEL_TEXT[lab]} ({key})", self.top_bar)
