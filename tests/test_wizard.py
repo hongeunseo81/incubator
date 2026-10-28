@@ -170,3 +170,31 @@ def test_size_mismatch_cleared_by_unlabeling(wizard, tmp_path):
     wizard.set_dataset(ds)
     wizard.data.label_tab.set_label(Label.UNLABELED)     # 첫 항목 = 크기 다른 이미지
     assert "크기가 다른" not in wizard.data.status.text()
+
+
+def test_reason_shown_next_to_next_button(wizard):
+    choose(wizard, "PatchCore")
+    wizard.next_btn.click()
+    assert "데이터셋을 고르세요" in wizard.reason.text()
+
+
+def test_entering_data_step_opens_latest_saved_dataset(qtbot, tmp_path, monkeypatch):
+    import os
+    import time
+    from impostor import dataset as dataset_mod
+    from impostor.dataset import save_dataset
+    monkeypatch.setattr(dataset_mod, "DATASET_DIR", tmp_path / "saved")
+    old = make_synthetic(tmp_path / "a", n_normal=10, n_boxed=2)
+    old.name = "old"
+    new = make_synthetic(tmp_path / "b", n_normal=10, n_boxed=2)
+    new.name = "new"
+    save_dataset(old, tmp_path / "saved" / "old.json")
+    save_dataset(new, tmp_path / "saved" / "new.json")
+    os.utime(tmp_path / "saved" / "old.json", (time.time() - 100, time.time() - 100))
+    w = Wizard()
+    qtbot.addWidget(w)
+    opened = []
+    w.data.open_requested.connect(opened.append)
+    choose(w, "PatchCore")
+    w.next_btn.click()
+    assert opened == [str(tmp_path / "saved" / "new.json")]

@@ -103,6 +103,11 @@ class DataStep(QWidget):
                 self.saved.setCurrentIndex(self.saved.count() - 1)
         self.saved.blockSignals(False)
 
+    def latest_saved(self) -> str | None:
+        d = Path(dataset_mod.DATASET_DIR)
+        files = sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime) if d.is_dir() else []
+        return str(files[-1]) if files else None
+
     def _picked(self, idx: int) -> None:
         path = self.saved.itemData(idx)
         if path:
@@ -221,8 +226,11 @@ class Wizard(QWidget):
         self.next_btn = QPushButton("다음 ▶")
         self.prev_btn.clicked.connect(lambda: self.go(self.step - 1))
         self.next_btn.clicked.connect(lambda: self.go(self.step + 1))
+        self.reason = QLabel()          # "다음"이 막힌 이유를 버튼 옆에 항상 보여준다
+        self.reason.setStyleSheet(BAD_STYLE)
         nav = QHBoxLayout()
         nav.addStretch()
+        nav.addWidget(self.reason)
         nav.addWidget(self.prev_btn)
         nav.addWidget(self.next_btn)
         v = QVBoxLayout(self)
@@ -280,13 +288,20 @@ class Wizard(QWidget):
         self.step = i
         self.stack.setCurrentIndex(i)
         self._update_nav()
+        if i == 1 and self.ds is None:
+            latest = self.data.latest_saved()
+            if latest:
+                self.data.open_requested.emit(latest)
 
     def _update_nav(self) -> None:
         running = self.result.running
         self.prev_btn.setEnabled(self.step > 0 and not running)
         ok = self.can_leave(self.step)
         self.next_btn.setEnabled(self.step < 3 and ok and not running)
-        self.next_btn.setToolTip("" if ok or self.step != 1 else " · ".join(self.data.problems()))
+        why = "" if ok or self.step == 3 else (
+            "알고리즘을 고르세요" if self.step == 0 else " · ".join(self.data.problems()))
+        self.next_btn.setToolTip(why)
+        self.reason.setText(why)
         summaries = [self.algo.selected, self.ds.name if self.ds else None, None, None]
         for k, lab in enumerate(self.step_labels):
             text = STEP_TITLES[k]
