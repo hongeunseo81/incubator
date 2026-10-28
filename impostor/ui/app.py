@@ -6,7 +6,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QTabWidget
 
 from impostor.dataset import DATASET_DIR, Dataset, load_dataset, save_dataset
-from impostor.ui.compare_tab import CompareTab
+from impostor.ui.result_view import ResultView
 from impostor.ui.dataset_dialogs import ImportDialog, ScanDialog
 from impostor.ui.label_tab import LabelTab
 
@@ -23,8 +23,8 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.label_tab = LabelTab()
         self.label_tab.changed.connect(lambda: self._set_dirty(True))
-        self.compare_tab = CompareTab()
-        self.label_tab.changed.connect(self.compare_tab.labels_changed)
+        self.compare_tab = ResultView()   # 임시 — Task 4 에서 마법사로 교체
+        self.label_tab.changed.connect(self.compare_tab.clear)
         self.tabs.addTab(self.label_tab, "라벨링")
         self.tabs.addTab(self.compare_tab, "비교")
         self.setCentralWidget(self.tabs)
@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
     def set_dataset(self, ds: Dataset, dirty: bool = False) -> None:
         self.dataset = ds
         self.label_tab.set_dataset(ds)
-        self.compare_tab.set_dataset(ds)
+        self.compare_tab.clear()
         self._set_dirty(dirty)
 
     # ---- 메뉴 ----

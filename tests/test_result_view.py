@@ -1,0 +1,133 @@
+import time
+
+import pytest
+
+from impostor.algorithms.base import AlgoResult, eval_items
+from impostor.dataset import Label
+from impostor.ui import result_view as rv
+from tests.conftest import make_synthetic
+
+
+class FakeAlgo:
+    """간섭 [3.0, 1.0], 임계값용 정상 2.0, 평가 정상 0.5"""
+    name = "Fake"
+    calls = 0
+    delay = 0.0
+
+    def __init__(self, params=None):
+        self.params = params
+
+    def run(self, ds, split, progress, should_stop):
+        type(self).calls += 1
+        time.sleep(self.delay)
+        interf, thresh, test = eval_items(ds, split)
+        r = AlgoResult(self.name)
+        for k, it in enumerate(interf):
+            r.scores[it.path] = 3.0 if k == 0 else 1.0
+            r.peaks[it.path] = None
+        for it in thresh:
+            r.scores[it.path] = 2.0
+        for it in test:
+            r.scores[it.path] = 0.5
+        r.sec_per_image = 0.08
+        return r
+
+
+class SlowFake(FakeAlgo):
+    delay = 0.5
+
+
+class SkipAlgo(FakeAlgo):
+    def run(self, ds, split, progress, should_stop):
+        return AlgoResult("Fake", skipped="박스 있는 간섭이 2장 미만")
+
+
+class FailAlgo(FakeAlgo):
+    def run(self, ds, split, progress, should_stop):
+        raise ValueError("마스크와 크기가 다른 이미지입니다: x.png")
+
+
+@pytest.fixture
+def make_view(qtbot, monkeypatch, tmp_path):
+    def _make(cls):
+        FakeAlgo.calls = 0
+        monkeypatch.setattr(rv, "REGISTRY", {"Fake": cls})
+        v = rv.ResultView()
+        qtbot.addWidget(v)
+        ds = make_synthetic(tmp_path, n_normal=10, n_boxed=2)
+        v.set_job(ds, "Fake", {})
+        return v, ds
+    return _make
+
+
+def run_and_wait(qtbot, v):
+    v.run_btn.click()
+    qtbot.waitUntil(lambda: not v.running, timeout=10000)
+
+
+def cell(v, col):
+    return v.table.item(0, rv.COLUMNS.index(col)).text()
+
+
+def table_text(v):
+    return " ".join(v.table.item(0, c).text() for c in range(v.table.columnCount()) if v.table.item(0, c))
+
+
+def test_row_after_run(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    assert (cell(v, "놓침"), cell(v, "오검출"), cell(v, "처리 시간")) == ("1/2", "0/2", "80 ms")
+
+
+def test_slider_and_auto(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    v.slider.slider.setValue(0)
+    assert (cell(v, "놓침"), cell(v, "오검출")) == ("0/2", "2/2")
+    v.slider.auto_btn.click()
+    assert cell(v, "놓침") == "1/2"
+    assert FakeAlgo.calls == 1
+
+
+def test_failure_reason_shown(qtbot, make_view):
+    v, _ = make_view(FailAlgo)
+    run_and_wait(qtbot, v)
+    assert "실행 실패" in table_text(v) and "x.png" in table_text(v)
+
+
+def test_skipped_reason_shown(qtbot, make_view):
+    v, _ = make_view(SkipAlgo)
+    run_and_wait(qtbot, v)
+    assert "2장 미만" in table_text(v)
+
+
+def test_images_sorted_by_score(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    scores = [float(v.images.item(r, 2).text()) for r in range(v.images.rowCount())]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_result_uses_snapshot(qtbot, make_view):
+    v, ds = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    for it in ds.items:
+        it.label = Label.UNLABELED
+    v.images.selectRow(0)
+    assert cell(v, "놓침") == "1/2" and v.images.rowCount() == 4
+    assert set(v.views) == {"원본", "Fake"}
+
+
+def test_running_changed_signal(qtbot, make_view):
+    v, _ = make_view(SlowFake)
+    seen = []
+    v.running_changed.connect(seen.append)
+    run_and_wait(qtbot, v)
+    assert seen == [True, False]
+
+
+def test_clear(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    v.clear()
+    assert v.table.rowCount() == 0 and v.images.rowCount() == 0 and v.slider is None
