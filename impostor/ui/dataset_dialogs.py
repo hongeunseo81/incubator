@@ -4,10 +4,10 @@ from pathlib import Path
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QVBoxLayout, QWidget)
 
-from impostor.dataset import Dataset, Label, import_folders, scan_dataset
+from impostor.dataset import Dataset, Label, find_image_kinds, find_mask_for, import_folders, scan_dataset
 from impostor.ui.label_tab import LABEL_TEXT
 
-DEFAULT_PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
+DEFAULT_EXCLUDE = "master"
 
 
 def default_label_for(folder: str) -> Label:
@@ -96,30 +96,55 @@ class _Base(QDialog):
 
 
 class ScanDialog(_Base):
-    """원본 스캔 폴더를 패턴으로 훑는다. 그룹 = 부모 폴더(회차)."""
+    """원본 스캔 폴더를 깊이와 상관없이 훑는다. 그룹 = 이미지가 들어 있는 회차 폴더."""
 
     def __init__(self, parent=None):
-        super().__init__("새 데이터셋 (폴더 스캔)", parent)
-        self.pattern = QLineEdit(DEFAULT_PATTERN)
-        self.form.addRow("파일 패턴", self.pattern)
-        preview = QPushButton("미리보기")
-        preview.clicked.connect(self.preview)
-        self._layout(preview)
+        super().__init__("새 데이터셋 (원본 폴더 스캔)", parent)
+        self.exclude = QLineEdit(DEFAULT_EXCLUDE)
+        self.exclude.setToolTip("폴더 이름에 이 단어가 들어 있으면 뺍니다 (쉼표로 여러 개, 예: master, calib)")
+        self.exclude.editingFinished.connect(lambda: self.set_root(self.root.text()))
+        self.kind = QComboBox()
+        self.kind.setToolTip("회차 폴더마다 있는 카메라 이미지 중 어떤 것을 볼지")
+        self.kind.currentIndexChanged.connect(lambda _: self._kind_changed())
+        self.form.addRow("제외할 폴더", self.exclude)
+        self.form.addRow("카메라 이미지", self.kind)
+        self._layout()
+
+    def excludes(self) -> list[str]:
+        return [w.strip() for w in self.exclude.text().split(",") if w.strip()]
+
+    def set_root(self, d: str) -> None:
+        super().set_root(d)
+        self.kind.blockSignals(True)
+        self.kind.clear()
+        for name, n in find_image_kinds(d, self.excludes()) if Path(d).is_dir() else []:
+            self.kind.addItem(f"{name}  ({n}장)", name)
+        self.kind.setCurrentIndex(0)      # 가장 많은 것 = 보통 검사 카메라
+        self.kind.blockSignals(False)
+        if not self.name.text() and Path(d).is_dir():
+            self.name.setText(Path(d).name)
+        self._kind_changed()
+
+    def _kind_changed(self) -> None:
+        # 같은 카메라의 마스터 마스크를 찾아 채운다 (직접 고른 값이 있어도 카메라를 바꾸면 다시 제안)
+        kind = self.kind.currentData()
+        m = find_mask_for(self.root.text(), kind) if kind else None
+        if m:
+            self.mask.setText(m)
+        self.preview()
 
     def build(self) -> Dataset:
-        return scan_dataset(self.name.text().strip(), self.root.text(), self.pattern.text(), self.mask.text())
+        kind = self.kind.currentData() or ""
+        return scan_dataset(self.name.text().strip(), self.root.text(), f"**/{kind}", self.mask.text(),
+                            self.excludes())
 
     def preview(self) -> None:
+        if not self.kind.currentData():
+            self.result_info.setText("루트 폴더에서 *Texture_8Bit.png 이미지를 찾지 못했습니다" if self.root.text() else "")
+            return
         ds = self.build()
-        msg = f"찾은 이미지 {len(ds.items)}개"
-        if ds.items and self.mask.text():
-            try:
-                bad = ds.check_sizes()
-                if bad:
-                    msg += f" · 마스크와 크기가 다른 이미지 {len(bad)}개"
-            except OSError as e:
-                msg += f" · {e}"
-        self.result_info.setText(msg)
+        groups = len({i.group for i in ds.items})
+        self.result_info.setText(f"찾은 이미지 {len(ds.items)}장 (회차 폴더 {groups}개) — 처음엔 전부 미분류로 들어갑니다")
 
 
 class ImportDialog(_Base):

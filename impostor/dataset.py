@@ -53,6 +53,15 @@ class Dataset:
     def usable(self, label: Label) -> list[Item]:
         return [i for i in self.items if i.label is label and self.exists(i)]
 
+    def unlabeled_to_normal(self) -> int:
+        """표시 안 한 이미지를 전부 정상으로. 바꾼 개수."""
+        n = 0
+        for i in self.items:
+            if i.label is Label.UNLABELED:
+                i.label = Label.NORMAL
+                n += 1
+        return n
+
     def check_sizes(self) -> list[str]:
         """마스크와 크기가 다른(또는 읽을 수 없는) 이미지 경로."""
         shape = load_mask(self.mask_path).shape
@@ -72,9 +81,38 @@ def _match(name: str, name_glob: str) -> bool:
     return any(fnmatch.fnmatch(name, p.strip()) for p in name_glob.split(";") if p.strip())
 
 
-def scan_dataset(name: str, root: str, pattern: str, mask_path: str) -> Dataset:
+TEXTURE_GLOB = "*Texture_8Bit.png"
+
+
+def _excluded(path: Path, root: Path, exclude) -> bool:
+    """루트 아래 경로의 폴더 이름에 exclude 단어가 들어 있으면 제외 (대소문자 무시). 예: Master, 3dvs_Master"""
+    parts = [s.lower() for s in path.relative_to(root).parts[:-1]]
+    return any(w.lower() in s for w in exclude if w for s in parts)
+
+
+def find_image_kinds(root: str, exclude=()) -> list[tuple[str, int]]:
+    """루트 아래(깊이 무관) Texture 이미지 파일 이름 종류와 개수. 예: fastenLHCam_02_IMG_Texture_8Bit.png"""
+    counts: dict[str, int] = {}
+    for p in Path(root).rglob(TEXTURE_GLOB):
+        if p.is_file() and not _excluded(p, Path(root), exclude):
+            counts[p.name] = counts.get(p.name, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))   # 많은 것(검사 카메라)부터
+
+
+def find_mask_for(root: str, kind: str) -> str | None:
+    """카메라 이미지 이름(…_IMG_Texture_8Bit.png)에 맞는 마스크(…_IMG_Kungfu.png)를 루트 아래에서 찾는다.
+    master 가 들어간 폴더 중 가장 얕은 것을 우선한다 (회차 폴더마다 있는 마스크보다 마스터 것)."""
+    if not kind.endswith("_IMG_Texture_8Bit.png"):
+        return None
+    name = kind.replace("_IMG_Texture_8Bit.png", "_IMG_Kungfu.png")
+    found = sorted(Path(root).rglob(name),
+                   key=lambda p: ("master" not in str(p).lower(), len(p.parts), str(p)))
+    return str(found[0]) if found else None
+
+
+def scan_dataset(name: str, root: str, pattern: str, mask_path: str, exclude=()) -> Dataset:
     paths = sorted(Path(root).glob(pattern))
-    items = [Item(str(p), p.parent.name) for p in paths if p.is_file()]
+    items = [Item(str(p), p.parent.name) for p in paths if p.is_file() and not _excluded(p, Path(root), exclude)]
     return Dataset(name, mask_path, items)
 
 

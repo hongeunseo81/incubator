@@ -132,3 +132,39 @@ def test_import_dialog_builds_dataset(qtbot, tmp_path):
     d.mask.setText(str(tmp_path / "m.png"))
     ds = d.build()
     assert ds.name == "fem" and sorted(i.label for i in ds.items) == sorted([Label.NORMAL, Label.INTERFERENCE])
+
+
+def test_scan_dialog_lists_kinds(qtbot, tmp_images):
+    from impostor.ui.dataset_dialogs import ScanDialog
+    d = ScanDialog()
+    qtbot.addWidget(d)
+    d.set_root(tmp_images.root)
+    kinds = [d.kind.itemData(i) for i in range(d.kind.count())]
+    assert kinds == ["cam_01_IMG_Texture_8Bit.png", "cam_03_IMG_Texture_8Bit.png"]
+    d.kind.setCurrentIndex(1)
+    d.name.setText("t")
+    d.mask.setText(tmp_images.mask)
+    assert len(d.build().items) == 2
+
+
+def test_data_step_grid_double_click_switches_to_single(qtbot, small_ds):
+    from impostor.ui.wizard import DataStep
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(small_ds)
+    s.grid.open_item.emit(small_ds.items[1])
+    assert s.views.currentWidget() is s.label_tab and s.label_tab.current() is small_ds.items[1]
+
+
+def test_scan_dialog_suggests_master_mask(qtbot, tmp_path):
+    import numpy as np
+    from tests.conftest import write_png
+    from impostor.ui.dataset_dialogs import ScanDialog
+    img = np.zeros((48, 64, 3), np.uint8)
+    write_png(tmp_path / "Source" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    m = write_png(tmp_path / "Master" / "JG" / "fastenLHCam_02_IMG_Kungfu.png", img)
+    write_png(tmp_path / "Master" / "JK" / "fastenLHCam_02_IMG_Kungfu.png", img)
+    d = ScanDialog()
+    qtbot.addWidget(d)
+    d.set_root(str(tmp_path))
+    assert d.mask.text() == m

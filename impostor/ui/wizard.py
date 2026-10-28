@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox,
-                               QStackedWidget, QVBoxLayout, QWidget)
+                               QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
 
 from impostor import dataset as dataset_mod
 from impostor.algorithms import PARAMS, REGISTRY, defaults
@@ -11,6 +11,7 @@ from impostor.dataset import Dataset, Label
 from impostor.readiness import readiness
 from impostor.ui.label_tab import LabelTab
 from impostor.ui.result_view import ResultView
+from impostor.ui.thumb_grid import ThumbGrid
 
 STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 파라미터", "④ 실행·결과"]
 DESCRIPTIONS = {
@@ -72,7 +73,7 @@ class DataStep(QWidget):
         bar = QHBoxLayout()
         bar.addWidget(QLabel("데이터셋"))
         bar.addWidget(self.saved)
-        for text, sig in (("새로 만들기 (폴더 스캔)", self.new_scan_requested), ("폴더 가져오기", self.import_requested),
+        for text, sig in (("원본 폴더 스캔", self.new_scan_requested), ("폴더 가져오기", self.import_requested),
                           ("저장", self.save_requested)):
             b = QPushButton(text)
             b.clicked.connect(sig.emit)
@@ -82,12 +83,19 @@ class DataStep(QWidget):
         self.hint = QLabel()
         self.label_tab = LabelTab()
         self.label_tab.changed.connect(self._edited)
+        self.grid = ThumbGrid()
+        self.grid.changed.connect(self._edited)
+        self.grid.open_item.connect(self.open_single)
+        self.views = QTabWidget()
+        self.views.addTab(self.grid, "썸네일 (여러 장 한 번에)")
+        self.views.addTab(self.label_tab, "한 장씩 (박스 그리기)")
+        self.views.currentChanged.connect(self._view_switched)
         self.status = QLabel()
         self.status.setWordWrap(True)
         v = QVBoxLayout(self)
         v.addLayout(bar)
         v.addWidget(self.hint)
-        v.addWidget(self.label_tab, 1)
+        v.addWidget(self.views, 1)
         v.addWidget(self.status)
         self.refresh_saved()
         self.update_status()
@@ -122,8 +130,24 @@ class DataStep(QWidget):
         else:
             self.mask_error = ""
         self.label_tab.set_dataset(ds)
+        self.grid.set_dataset(ds)
         self.refresh_saved()
         self.update_status()
+
+    def open_single(self, item) -> None:
+        self.views.setCurrentWidget(self.label_tab)
+        self.label_tab.select_item(item)
+
+    def _view_switched(self, _idx: int) -> None:
+        # 다른 보기에서 바뀐 라벨을 반영
+        if self.views.currentWidget() is self.grid:
+            self.grid.refresh()
+            return
+        cur = self.label_tab.current()
+        if cur is not None:
+            self.label_tab.select_item(cur)
+        elif self.ds is not None:
+            self.label_tab.set_dataset(self.ds)
 
     def set_algo(self, name: str | None) -> None:
         self.algo = name

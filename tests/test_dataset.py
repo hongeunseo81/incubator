@@ -74,3 +74,60 @@ def test_size_mismatch_reported(tmp_images):
                     np.zeros((100, 100, 3), np.uint8))
     ds = scan_dataset("t", tmp_images.root, PATTERN, tmp_images.mask)
     assert ds.check_sizes() == [odd]
+
+
+# ---- 원본 폴더에서 바로 ----
+from impostor.dataset import find_image_kinds
+
+
+def test_find_image_kinds_counts_recursive(tmp_path):
+    img = np.zeros((48, 64, 3), np.uint8)
+    write_png(tmp_path / "Source" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(tmp_path / "Source" / "car1" / "fastenRHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(tmp_path / "261020 FEM" / "NG" / "car2" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(tmp_path / "Source" / "car1" / "fastenLHCam_02_IMG_PointCloud_Z.png", img)   # Texture 아님
+    assert find_image_kinds(str(tmp_path)) == [("fastenLHCam_02_IMG_Texture_8Bit.png", 2),
+                                                ("fastenRHCam_02_IMG_Texture_8Bit.png", 1)]
+
+
+def test_scan_recursive_any_depth(tmp_path):
+    img = np.zeros((48, 64, 3), np.uint8)
+    write_png(tmp_path / "Source" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(tmp_path / "261020 FEM" / "NG" / "car2" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    ds = scan_dataset("t", str(tmp_path), "**/fastenLHCam_02_IMG_Texture_8Bit.png", "m.png")
+    assert sorted(i.group for i in ds.items) == ["car1", "car2"]
+
+
+def test_unlabeled_to_normal(tmp_images):
+    ds = scan_dataset("t", tmp_images.root, PATTERN, tmp_images.mask)
+    ds.items[0].label = Label.INTERFERENCE
+    assert ds.unlabeled_to_normal() == 1
+    assert [i.label for i in ds.items] == [Label.INTERFERENCE, Label.NORMAL]
+
+
+def test_scan_excludes_master_folders(tmp_path):
+    img = np.zeros((48, 64, 3), np.uint8)
+    write_png(tmp_path / "Source" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(tmp_path / "Master" / "JG" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    write_png(tmp_path / "3dvs_Master" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    ds = scan_dataset("t", str(tmp_path), "**/fastenLHCam_02_IMG_Texture_8Bit.png", "m.png", exclude=["master"])
+    assert [i.group for i in ds.items] == ["car1"]
+    assert find_image_kinds(str(tmp_path), exclude=["master"]) == [("fastenLHCam_02_IMG_Texture_8Bit.png", 1)]
+
+
+def test_kinds_sorted_by_count(tmp_path):
+    img = np.zeros((4, 4, 3), np.uint8)
+    write_png(tmp_path / "calib" / "0000_IMG_Texture_8Bit.png", img)
+    for k in range(3):
+        write_png(tmp_path / f"car{k}" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
+    assert [n for n, _ in find_image_kinds(str(tmp_path))] == ["fastenLHCam_02_IMG_Texture_8Bit.png",
+                                                               "0000_IMG_Texture_8Bit.png"]
+
+
+def test_mask_prefers_shallow_master(tmp_path):
+    from impostor.dataset import find_mask_for
+    img = np.zeros((4, 4, 3), np.uint8)
+    write_png(tmp_path / "3dvs_Master" / "a" / "b" / "fastenLHCam_02_IMG_Kungfu.png", img)
+    m = write_png(tmp_path / "Master" / "JG" / "fastenLHCam_02_IMG_Kungfu.png", img)
+    write_png(tmp_path / "car1" / "fastenLHCam_02_IMG_Kungfu.png", img)
+    assert find_mask_for(str(tmp_path), "fastenLHCam_02_IMG_Texture_8Bit.png") == m

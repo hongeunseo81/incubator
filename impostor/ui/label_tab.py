@@ -91,6 +91,14 @@ class LabelTab(QWidget):
             self.mask = None
         self._refill()
 
+    def select_item(self, item: Item) -> None:
+        if self.filter.currentText() != "전체":
+            self.filter.setCurrentText("전체")
+        else:
+            self._refill()
+        if item in self.shown:
+            self.list.setCurrentRow(self.shown.index(item))
+
     def current(self) -> Item | None:
         r = self.list.currentRow()
         return self.shown[r] if 0 <= r < len(self.shown) else None
