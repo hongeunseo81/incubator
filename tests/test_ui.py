@@ -200,10 +200,11 @@ def test_scan_dialog_only_root_needed(qtbot, tmp_path, monkeypatch):
     from impostor.ui.dataset_dialogs import ScanDialog
     d = ScanDialog()
     qtbot.addWidget(d)
-    assert not d.details.isVisible() and d.details.isHidden()
+    assert d.field_labels() == ["루트 폴더", "데이터셋 이름", "카메라 이름", "마스터 파일"]
     d.set_root(str(_fem_like_root(tmp_path)))
+    assert d.kind.currentText() == "fastenLHCam_02  (3장)"
     assert d.name.text() == "clip_fastenLHCam_02"
-    assert "3장" in d.result_info.text() and "fastenLHCam_02_IMG_Kungfu.png" in d.result_info.text()
+    assert "3장" in d.result_info.text() and d.mask.text().endswith("fastenLHCam_02_IMG_Kungfu.png")
     d._accept()
     assert d.dataset is not None and len(d.dataset.items) == 3
 
@@ -216,7 +217,7 @@ def test_scan_dialog_opens_details_when_no_mask(qtbot, tmp_path):
     d = ScanDialog()
     qtbot.addWidget(d)
     d.set_root(str(tmp_path / "r"))
-    assert not d.details.isHidden() and "마스크를 찾지 못했습니다" in d.result_info.text()
+    assert "마스터 파일을 찾지 못했습니다" in d.result_info.text()
 
 
 def test_scan_name_avoids_overwrite(qtbot, tmp_path, monkeypatch):
