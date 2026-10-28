@@ -15,13 +15,13 @@ import cv2
 import numpy as np
 import torch
 
+from impostor.algorithms.params import defaults
 from impostor.algorithms.base import AlgoResult, Cancelled, Progress, ShouldStop, check_stop, eval_items
 from impostor.dataset import DATASET_DIR, Dataset, Item
 from impostor.imageio import imread, imsize, load_mask
 from impostor.split import Split
 
-FAST = dict(model="yolov8n.pt", epochs=30, imgsz=640, batch=8, k=3)
-PRECISE = dict(model="yolov8s.pt", epochs=100, imgsz=960, batch=4, k=5)
+FAST = defaults("YOLO") | {"batch": 8}   # 빠른 모드 — 화면에 없는 batch 만 여기서 정한다
 TMP_PREFIX = "impostor_yolo_"
 WEIGHTS_DIR = DATASET_DIR.parent / "weights"
 SEED = 0

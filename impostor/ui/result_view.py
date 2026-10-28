@@ -13,6 +13,7 @@ from impostor.dataset import Dataset, Item, Label
 from impostor.imageio import imread, load_mask
 from impostor.metrics import auto_threshold, evaluate
 from impostor.readiness import Snapshot, snapshot
+from impostor.split import SplitError
 from impostor.ui.canvas import ImageCanvas
 from impostor.ui.label_tab import LABEL_TEXT
 from impostor.ui.worker import RunWorker
@@ -147,7 +148,11 @@ class ResultView(QWidget):
         if self.ds is None or self.running:
             return
         self.clear()
-        self.snap = snapshot(self.ds)
+        try:
+            self.snap = snapshot(self.ds)
+        except SplitError as e:      # 준비 검사를 우회한 경우에도 사유를 남긴다
+            self._done(AlgoResult(self.algo, skipped=str(e)))
+            return
         try:
             self.mask = load_mask(self.snap.ds.mask_path)
         except OSError:
@@ -191,7 +196,6 @@ class ResultView(QWidget):
             self.table.setSpan(0, 1, 1, len(COLUMNS) - 1)
             self.stage.setText(res.skipped)
             return
-        self.table.setSpan(0, 1, 1, 1)
         interf, thresh, test = eval_items(self.snap.ds, self.snap.split)
         values = list(res.scores.values())
         auto = auto_threshold(res.scores[i.path] for i in thresh)

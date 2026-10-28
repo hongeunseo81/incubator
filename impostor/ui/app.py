@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
     def _running(self, running: bool) -> None:
         # 실행 중에는 데이터셋을 바꾸거나 다시 열 수 없다
         self.menu.setEnabled(not running)
+        for a in self.menu.actions():       # 단축키(Ctrl+O/S)도 확실히 막는다
+            a.setEnabled(not running)
         for b in self.wizard.data.bar_buttons + [self.wizard.data.saved]:
             b.setEnabled(not running)
 

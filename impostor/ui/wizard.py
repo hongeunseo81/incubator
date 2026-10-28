@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QComboBox, QFormLayout, QHBoxLayout, QLabel, QPus
 
 from impostor import dataset as dataset_mod
 from impostor.algorithms import PARAMS, REGISTRY, defaults
-from impostor.dataset import Dataset
+from impostor.dataset import Dataset, Label
 from impostor.readiness import readiness
 from impostor.ui.label_tab import LabelTab
 from impostor.ui.result_view import ResultView
@@ -63,6 +63,8 @@ class DataStep(QWidget):
         super().__init__()
         self.ds: Dataset | None = None
         self.algo: str | None = None
+        self.size_bad: set[str] = set()   # 데이터셋을 열 때 한 번만 확인 (이미지 전부 디코딩이라 비쌈)
+        self.mask_error = ""
         self.saved = QComboBox()
         self.saved.setMinimumWidth(240)
         self.saved.activated.connect(self._picked)
@@ -108,6 +110,12 @@ class DataStep(QWidget):
 
     def set_dataset(self, ds: Dataset) -> None:
         self.ds = ds
+        try:
+            self.size_bad = set(ds.check_sizes())
+        except OSError as e:
+            self.size_bad, self.mask_error = set(), str(e)
+        else:
+            self.mask_error = ""
         self.label_tab.set_dataset(ds)
         self.refresh_saved()
         self.update_status()
@@ -119,7 +127,15 @@ class DataStep(QWidget):
         self.update_status()
 
     def problems(self) -> list[str]:
-        return readiness(self.ds, self.algo) if self.algo else ["알고리즘을 고르세요"]
+        if not self.algo:
+            return ["알고리즘을 고르세요"]
+        p = readiness(self.ds, self.algo)
+        if self.ds is not None and self.mask_error:
+            p.append(self.mask_error)
+        bad = [i for i in self.ds.items if i.path in self.size_bad and i.label is not Label.UNLABELED]             if self.ds is not None else []
+        if bad:
+            p.append(f"마스크와 크기가 다른 이미지 {len(bad)}개 — 미분류로 바꾸세요")
+        return p
 
     def update_status(self) -> None:
         p = self.problems()
@@ -228,6 +244,9 @@ class Wizard(QWidget):
     def set_dataset(self, ds: Dataset) -> None:
         self.data.set_dataset(ds)
         self.result.clear()
+        if self.step >= 2:
+            # ③·④에서 다른 데이터셋을 열면 준비 검사부터 다시: 안 되면 ②로, 되면 ④를 새 데이터셋에 묶는다
+            self.go(self.step)
         self._update_nav()
 
     def _algo_changed(self) -> None:
@@ -252,6 +271,10 @@ class Wizard(QWidget):
     def go(self, i: int) -> None:
         if self.result.running or not 0 <= i < len(STEP_TITLES):
             return
+        for k in range(i):          # 앞 단계 준비가 안 됐으면 거기서 멈춘다
+            if not self.can_leave(k):
+                i = k
+                break
         if i == 3:
             self.result.set_job(self.ds, self.algo.selected, self.params.values())
         self.step = i

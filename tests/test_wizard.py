@@ -51,9 +51,9 @@ def test_patchcore_flow_reaches_result(wizard, tmp_path):
     assert "PatchCore" in wizard.step_labels[0].text()
 
 
-def test_param_form_follows_algo(wizard):
+def test_param_form_follows_algo(wizard, tmp_path):
+    wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
     choose(wizard, "YOLO")
-    wizard.next_btn.click()
     wizard.go(2)
     assert "epochs" in wizard.params.widgets
     wizard.go(0)
@@ -121,3 +121,52 @@ def test_main_window_uses_wizard(qtbot, monkeypatch):
     w = MainWindow()
     qtbot.addWidget(w)
     assert isinstance(w.wizard, Wizard) and w.label_tab is w.wizard.data.label_tab
+
+
+def test_go_cannot_skip_ungated_steps(wizard):
+    wizard.go(3)
+    assert wizard.step == 0
+    choose(wizard, "YOLO")
+    wizard.go(3)
+    assert wizard.step == 1
+
+
+def test_opening_unready_dataset_at_result_goes_back(wizard, tmp_path):
+    choose(wizard, "PatchCore")
+    wizard.set_dataset(make_synthetic(tmp_path / "a", n_normal=10, n_boxed=2))
+    wizard.go(3)
+    assert wizard.step == 3
+    wizard.set_dataset(make_synthetic(tmp_path / "b", n_normal=1, n_boxed=2))
+    assert wizard.step == 1 and "최소 3개" in wizard.data.status.text()
+
+
+def test_opening_ready_dataset_at_result_rebinds(wizard, tmp_path):
+    choose(wizard, "PatchCore")
+    wizard.set_dataset(make_synthetic(tmp_path / "a", n_normal=10, n_boxed=2))
+    wizard.go(3)
+    b = make_synthetic(tmp_path / "b", n_normal=10, n_boxed=2)
+    wizard.set_dataset(b)
+    assert wizard.result.ds is b
+
+
+def test_size_mismatch_shown_in_status(wizard, tmp_path):
+    import numpy as np
+    from pathlib import Path
+    from tests.conftest import write_png
+    ds = make_synthetic(tmp_path, n_normal=10, n_boxed=2)
+    write_png(Path(ds.items[0].path), np.zeros((50, 50, 3), np.uint8))
+    choose(wizard, "PatchCore")
+    wizard.set_dataset(ds)
+    assert "크기가 다른 이미지 1개" in wizard.data.status.text()
+
+
+def test_size_mismatch_cleared_by_unlabeling(wizard, tmp_path):
+    import numpy as np
+    from pathlib import Path
+    from tests.conftest import write_png
+    ds = make_synthetic(tmp_path, n_normal=10, n_boxed=2)
+    write_png(Path(ds.items[0].path), np.zeros((50, 50, 3), np.uint8))
+    choose(wizard, "PatchCore")
+    wizard.set_dataset(ds)
+    wizard.data.label_tab.set_label(Label.UNLABELED)     # 첫 항목 = 크기 다른 이미지
+    assert "크기가 다른" not in wizard.data.status.text()

@@ -131,3 +131,12 @@ def test_clear(qtbot, make_view):
     run_and_wait(qtbot, v)
     v.clear()
     assert v.table.rowCount() == 0 and v.images.rowCount() == 0 and v.slider is None
+
+
+def test_run_split_error_shown(qtbot, monkeypatch, tmp_path):
+    monkeypatch.setattr(rv, "REGISTRY", {"Fake": FakeAlgo})
+    v = rv.ResultView()
+    qtbot.addWidget(v)
+    v.set_job(make_synthetic(tmp_path, n_normal=1, n_boxed=2), "Fake", {})
+    v.run_btn.click()
+    assert not v.running and "최소 3개" in table_text(v)
