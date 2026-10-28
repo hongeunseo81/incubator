@@ -23,6 +23,35 @@ def make_mask(w: int, h: int) -> np.ndarray:
     return m
 
 
+def make_synthetic(tmp_path: Path, n_normal=15, n_boxed=2, n_boxless=0, size=224):
+    """격자 무늬+잡음 정상, 마스크 안에 흰 사각형(40px)이 있는 간섭. Dataset 반환."""
+    from impostor.dataset import Dataset, Item, Label
+
+    rng = np.random.default_rng(0)
+    base = np.full((size, size), 110, np.uint8)
+    base[::16, :] = 60
+    base[:, ::16] = 60
+
+    def noisy():
+        g = np.clip(base + rng.normal(0, 6, base.shape), 0, 255).astype(np.uint8)
+        return cv2.cvtColor(g, cv2.COLOR_GRAY2BGR)
+
+    items = []
+    for k in range(n_normal):
+        items.append(Item(write_png(tmp_path / f"n{k:02d}" / "img.png", noisy()), f"n{k:02d}", Label.NORMAL))
+    for k in range(n_boxed + n_boxless):
+        img = noisy()
+        x0 = size // 4 + 10 + (k % 3) * 20
+        y0 = size // 4 + 10 + (k // 3) * 20
+        img[y0:y0 + 40, x0:x0 + 40] = 250
+        it = Item(write_png(tmp_path / f"i{k:02d}" / "img.png", img), f"i{k:02d}", Label.INTERFERENCE)
+        if k < n_boxed:
+            it.add_box((x0, y0, x0 + 40, y0 + 40))
+        items.append(it)
+    mask = write_png(tmp_path / "mask.png", make_mask(size, size))
+    return Dataset("synthetic", mask, items)
+
+
 @dataclass
 class TmpImages:
     root: str
