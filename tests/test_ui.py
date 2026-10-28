@@ -242,3 +242,14 @@ def test_main_window_has_no_menu_bar_but_keeps_shortcuts(qtbot, monkeypatch):
     qtbot.addWidget(w)
     assert w.menuBar().isHidden()
     assert any(a.shortcut().toString() == "Ctrl+S" for a in w.actions())
+
+
+def test_data_step_hides_boxes_for_patchcore(qtbot, small_ds):
+    from impostor.ui.wizard import DataStep
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(small_ds)
+    s.set_algo("PatchCore")
+    assert not s.grid.boxes_enabled
+    s.set_algo("YOLO")
+    assert s.grid.boxes_enabled

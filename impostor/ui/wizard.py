@@ -226,6 +226,7 @@ class DataStep(QWidget):
 
     def set_algo(self, name: str | None) -> None:
         self.algo = name
+        self.grid.set_boxes_enabled(name == "YOLO")
         self.update_status()
 
     def problems(self) -> list[str]:

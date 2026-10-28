@@ -179,3 +179,17 @@ def test_missing_file_listed(qtbot, small_ds):
     g.set_dataset(small_ds)
     g.view.setCurrentRow(0)
     assert "파일 없음" in g.view.item(0).text()
+
+
+def test_boxes_hidden_when_disabled(qtbot, grid):
+    g, ds = grid
+    g.view.setCurrentRow(1)
+    g.label_current(Label.INTERFERENCE)
+    g.preview.box_added.emit((1, 1, 20, 20))
+    assert "박스1" in g.view.item(1).text()
+    g.set_boxes_enabled(False)                          # PatchCore
+    assert "박스" not in g.view.item(1).text()
+    assert not g.preview.editable and g.preview.box_count() == 0
+    assert ds.items[1].boxes == [(1, 1, 20, 20)]         # 데이터는 그대로
+    g.set_boxes_enabled(True)                           # YOLO
+    assert "박스1" in g.view.item(1).text() and g.preview.editable and g.preview.box_count() == 1

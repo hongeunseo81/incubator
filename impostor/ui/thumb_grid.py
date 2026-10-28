@@ -38,6 +38,7 @@ class ThumbGrid(QWidget):
         self.mask_shape = None     # 크롭은 마스크와 크기가 같은 이미지에만 적용
         self.shown: list[Item] = []
         self.preview_path: str | None = None
+        self.boxes_enabled = True     # PatchCore 는 박스가 필요 없어 박스 표시·그리기를 끈다
 
         self.filter = QComboBox()
         self.filter.addItems(FILTERS)
@@ -147,7 +148,7 @@ class ThumbGrid(QWidget):
         w = self.view.item(row)
         miss = "  [파일 없음]" if not self.ds.exists(it) else ""
         usage = f"·{PIN_TEXT[it.pin]}" if it.pin is not Pin.NONE else ""
-        boxes = f"·박스{len(it.boxes)}" if it.boxes else ""
+        boxes = f"·박스{len(it.boxes)}" if (it.boxes and self.boxes_enabled) else ""
         w.setText(f"[{LABEL_TEXT[it.label]}{usage}{boxes}] {it.group}{miss}")
         w.setForeground(QBrush(LABEL_COLOR[it.label]))
 
@@ -172,7 +173,7 @@ class ThumbGrid(QWidget):
         s = self.aligner.shift(img) if (self.aligner is not None and same) else None
         mask = shift_mask(self.mask, s[0], s[1]) if s is not None else self.mask
         self.preview.set_mask_outline(mask if same else None)
-        self.preview.set_boxes(it.boxes)
+        self.preview.set_boxes(it.boxes if self.boxes_enabled else [])
         self.shift_label.setText(describe(s))
         if first and self.crop is not None and same:
             y0, y1, x0, x1 = self.crop
@@ -215,7 +216,7 @@ class ThumbGrid(QWidget):
 
     def _show_usage(self, it: Item) -> None:
         self.pin_box.setVisible(it.label is Label.NORMAL)
-        self.preview.editable = it.label is Label.INTERFERENCE     # 간섭 사진만 박스를 그린다
+        self.preview.editable = self.boxes_enabled and it.label is Label.INTERFERENCE   # 간섭 사진만 박스를 그린다
         for p, b in self.pin_buttons.items():
             b.setChecked(p is it.pin)
 
@@ -223,6 +224,17 @@ class ThumbGrid(QWidget):
         cur = self.view.currentRow()
         if 0 <= cur < len(self.shown):
             self._show_usage(self.shown[cur])
+
+    def set_boxes_enabled(self, on: bool) -> None:
+        self.boxes_enabled = on
+        if self.ds is None:
+            return
+        for r in range(len(self.shown)):
+            self._decorate(r)
+        it = self.current()
+        if it is not None:
+            self.preview.set_boxes(it.boxes if on else [])
+            self._show_usage(it)
 
     def current(self) -> Item | None:
         r = self.view.currentRow()

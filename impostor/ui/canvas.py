@@ -150,6 +150,9 @@ class ImageCanvas(QGraphicsView):
         self._heat = self.scene().addPixmap(to_pixmap(bgra))
         self._heat.setZValue(1)
 
+    def box_count(self) -> int:
+        return len(self._gt)
+
     def set_boxes(self, boxes) -> None:
         for r in self._gt:
             self.scene().removeItem(r)
