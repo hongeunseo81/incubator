@@ -10,7 +10,7 @@ from impostor import dataset as dataset_mod
 from impostor.dataset import Dataset, Label, find_image_kinds, find_mask_for, import_folders, scan_dataset
 from impostor.ui.label_tab import LABEL_TEXT
 
-DEFAULT_EXCLUDE = "master"
+EXCLUDE = ["master"]   # Master 폴더의 마스터 이미지가 차량 데이터에 섞이지 않게 항상 뺀다
 
 
 def default_label_for(folder: str) -> Label:
@@ -116,9 +116,6 @@ class ScanDialog(_Base):
         self.resize(640, 220)
         self._name_edited = False
         self.name.textEdited.connect(lambda _: setattr(self, "_name_edited", True))
-        self.exclude = QLineEdit(DEFAULT_EXCLUDE)
-        self.exclude.setToolTip("폴더 이름에 이 단어가 들어 있으면 뺍니다 (쉼표로 여러 개, 예: master, calib)")
-        self.exclude.editingFinished.connect(lambda: self.set_root(self.root.text()))
         self.kind = QComboBox()
         self.kind.setToolTip("회차 폴더마다 있는 카메라 이미지 중 어떤 것을 볼지")
         self.kind.currentIndexChanged.connect(lambda _: self._kind_changed())
@@ -127,7 +124,7 @@ class ScanDialog(_Base):
         top = QFormLayout()
         top.addRow("원본 루트 폴더", _path_row(self.root, self._pick_root))
         self.toggle = QToolButton()
-        self.toggle.setText("세부 설정 (이름·카메라·마스크·제외 폴더)")
+        self.toggle.setText("세부 설정 (이름·카메라·마스크)")
         self.toggle.setCheckable(True)
         self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.toggle.setArrowType(Qt.RightArrow)
@@ -138,7 +135,6 @@ class ScanDialog(_Base):
         f.addRow("이름", self.name)
         f.addRow("카메라 이미지", self.kind)
         f.addRow("마스크 파일", _path_row(self.mask, self._pick_mask))
-        f.addRow("제외할 폴더", self.exclude)
         self.details.hide()
 
         v = QVBoxLayout(self)
@@ -154,14 +150,11 @@ class ScanDialog(_Base):
         self.details.setVisible(on)
         self.adjustSize()
 
-    def excludes(self) -> list[str]:
-        return [w.strip() for w in self.exclude.text().split(",") if w.strip()]
-
     def set_root(self, d: str) -> None:
         super().set_root(d)
         self.kind.blockSignals(True)
         self.kind.clear()
-        for name, n in find_image_kinds(d, self.excludes()) if Path(d).is_dir() else []:
+        for name, n in find_image_kinds(d, EXCLUDE) if Path(d).is_dir() else []:
             self.kind.addItem(f"{name}  ({n}장)", name)
         self.kind.setCurrentIndex(0)      # 가장 많은 것 = 보통 검사 카메라
         self.kind.blockSignals(False)
@@ -181,7 +174,7 @@ class ScanDialog(_Base):
     def build(self) -> Dataset:
         kind = self.kind.currentData() or ""
         return scan_dataset(self.name.text().strip(), self.root.text(), f"**/{kind}", self.mask.text(),
-                            self.excludes())
+                            EXCLUDE)
 
     def preview(self) -> None:
         kind = self.kind.currentData()

@@ -229,3 +229,16 @@ def test_scan_name_avoids_overwrite(qtbot, tmp_path, monkeypatch):
     qtbot.addWidget(d)
     d.set_root(str(_fem_like_root(tmp_path)))
     assert d.name.text() == "clip_fastenLHCam_02_2"
+
+
+def test_scan_dialog_has_no_exclude_field_but_skips_master(qtbot, tmp_path):
+    import numpy as np
+    from tests.conftest import write_png
+    from impostor.ui.dataset_dialogs import ScanDialog
+    root = _fem_like_root(tmp_path)
+    write_png(root / "Master" / "JG" / "fastenLHCam_02_IMG_Texture_8Bit.png", np.zeros((48, 64, 3), np.uint8))
+    d = ScanDialog()
+    qtbot.addWidget(d)
+    assert not hasattr(d, "exclude")
+    d.set_root(str(root))
+    assert len(d.build().items) == 3
