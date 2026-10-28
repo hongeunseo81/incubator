@@ -284,3 +284,7 @@ def test_align_toggle_disabled_without_reference(qtbot, small_ds):
     qtbot.addWidget(s)
     s.set_dataset(small_ds)
     assert not s.align_check.isEnabled() and not s.align_check.isChecked()
+
+
+def test_pin_group_hidden(qtbot, label_tab):
+    assert label_tab.pin_box.isHidden()

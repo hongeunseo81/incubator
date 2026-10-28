@@ -53,7 +53,9 @@ class LabelTab(QWidget):
             b.clicked.connect(lambda _=False, l=lab: self.set_label(l))
             lb.addWidget(b)
             self.label_buttons[lab] = b
-        pin_box = QGroupBox("분할 고정")
+        # 학습/시험 직접 지정 — 헷갈려서 화면에서는 숨긴다 (저장된 지정값은 그대로 적용됨)
+        self.pin_box = pin_box = QGroupBox("분할 고정")
+        pin_box.hide()
         pb = QVBoxLayout(pin_box)
         self.pin_group = QButtonGroup(self)
         self.pin_buttons = {}
