@@ -1,0 +1,9 @@
+PySide6
+ultralytics
+opencv-python
+numpy
+scikit-learn
+
+[dev]
+pytest
+pytest-qt

@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: impostor
+Version: 0.1.0
+Summary: 이물 간섭 검출 알고리즘 비교 툴
+Requires-Python: >=3.11
+Requires-Dist: PySide6
+Requires-Dist: ultralytics
+Requires-Dist: opencv-python
+Requires-Dist: numpy
+Requires-Dist: scikit-learn
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-qt; extra == "dev"

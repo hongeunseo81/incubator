@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "impostor"
+version = "0.1.0"
+description = "이물 간섭 검출 알고리즘 비교 툴"
+requires-python = ">=3.11"
+# torch / torchvision 은 CUDA 빌드를 직접 설치한다 (README 참고)
+dependencies = [
+    "PySide6",
+    "ultralytics",
+    "opencv-python",
+    "numpy",
+    "scikit-learn",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-qt"]
+
+[tool.setuptools.packages.find]
+include = ["impostor*"]
+
+[tool.pytest.ini_options]
+markers = ["slow: GPU/모델 다운로드 필요"]
+addopts = "-m \"not slow\""
+testpaths = ["tests"]
