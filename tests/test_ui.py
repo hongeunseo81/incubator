@@ -286,6 +286,38 @@ def test_align_toggle_disabled_without_reference(qtbot, small_ds):
     assert not s.align_check.isEnabled() and not s.align_check.isChecked()
 
 
-def test_pin_group_visible_with_simple_names(qtbot, label_tab):
-    assert not label_tab.pin_box.isHidden() and label_tab.pin_box.title() == "용도"
+def test_usage_shown_only_for_normal(qtbot, label_tab, small_ds):
     assert [label_tab.pin_buttons[p].text() for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL)] == ["자동", "학습", "시험"]
+    assert label_tab.pin_box.isHidden()                       # 첫 항목은 미분류
+    label_tab.set_label(Label.NORMAL)
+    assert not label_tab.pin_box.isHidden()
+    label_tab.set_label(Label.INTERFERENCE)
+    assert label_tab.pin_box.isHidden()
+
+
+def test_label_tab_layout_matches_list(qtbot, small_ds):
+    from impostor.ui.thumb_grid import LIST_W, ThumbGrid
+    tab = LabelTab()
+    qtbot.addWidget(tab)
+    tab.set_dataset(small_ds)
+    assert tab.list.minimumWidth() == tab.list.maximumWidth() == LIST_W
+    g = ThumbGrid()
+    qtbot.addWidget(g)
+    assert g.view.minimumWidth() == g.view.maximumWidth() == LIST_W
+    # 라벨 버튼이 목록 위 같은 줄(맨 위 줄)에 있다
+    assert tab.label_buttons[Label.NORMAL].parent() is tab.top_bar
+
+
+def test_label_tab_canvas_size_stable(qtbot, small_ds):
+    small_ds.items[1].path = small_ds.items[1].path   # 경로 길이와 무관해야 함
+    tab = LabelTab()
+    qtbot.addWidget(tab)
+    tab.resize(1200, 700)
+    tab.set_dataset(small_ds)
+    tab.show()
+    qtbot.waitExposed(tab)
+    before = tab.canvas.size()
+    tab.info.setText("C:/" + "아주긴경로/" * 40 + "x.png")
+    tab.step(1)
+    qtbot.wait(10)
+    assert tab.canvas.size() == before

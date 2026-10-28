@@ -6,13 +6,13 @@ import numpy as np
 from PySide6.QtCore import QEvent, Signal
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QPushButton, QSplitter, QVBoxLayout, QWidget)
+                               QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
 from impostor.align import Aligner, describe, shift_mask
 from impostor.dataset import Dataset, Item, Label, Pin
 from impostor.imageio import imread, load_mask
 from impostor.ui.canvas import ImageCanvas
-from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, PIN_HELP, PIN_TEXT
+from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, LIST_W, PIN_HELP, PIN_TEXT
 
 FILTERS = ["전체", "정상", "간섭", "미분류"]
 
@@ -59,19 +59,25 @@ class ThumbGrid(QWidget):
         self.rest_normal_btn.setToolTip("간섭만 골라 표시한 뒤 누르면 나머지가 모두 정상이 됩니다")
         self.rest_normal_btn.clicked.connect(self.rest_to_normal)
         top.addWidget(self.rest_normal_btn)
-        top.addSpacing(16)
+        # 용도: 정상 사진을 학습/시험 중 어디에 쓸지 (지금 보는 사진이 정상일 때만 보임)
+        self.pin_box = QWidget()
+        pb = QHBoxLayout(self.pin_box)
+        pb.setContentsMargins(16, 0, 0, 0)
         usage = QLabel("용도")
         usage.setToolTip(PIN_HELP)
-        top.addWidget(usage)
+        pb.addWidget(usage)
         self.pin_buttons: dict[Pin, QPushButton] = {}
         for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL):
             b = QPushButton(PIN_TEXT[p])
             b.setToolTip(PIN_HELP)
             b.clicked.connect(lambda _=False, pp=p: self.apply_pin(pp))
-            top.addWidget(b)
+            pb.addWidget(b)
             self.pin_buttons[p] = b
+        self.pin_box.hide()
+        top.addWidget(self.pin_box)
 
         self.view = QListWidget()
+        self.view.setFixedWidth(LIST_W)      # 목록 폭 고정 → 미리보기 크기가 바뀌지 않는다
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.view.currentRowChanged.connect(self._preview)
         self.view.itemDoubleClicked.connect(lambda w: self.open_item.emit(self.shown[self.view.row(w)]))
@@ -81,15 +87,17 @@ class ThumbGrid(QWidget):
         self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         self.shift_label = QLabel()
         self.shift_label.setStyleSheet("color: gray")
+        self.shift_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)   # 글자 길이가 레이아웃을 밀지 않게
         right = QWidget()
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
         rv.addWidget(self.preview, 1)
         rv.addWidget(self.shift_label)
-        sp = QSplitter()
-        sp.addWidget(self.view)
-        sp.addWidget(right)
-        sp.setSizes([420, 800])
+        sp = QWidget()
+        sl = QHBoxLayout(sp)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.addWidget(self.view)
+        sl.addWidget(right, 1)
         hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · 휠 확대/축소 · 가운데 버튼 이동 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
         hint.setStyleSheet("color: gray")
 
@@ -149,6 +157,7 @@ class ThumbGrid(QWidget):
             return
         it = self.shown[row]
         self.preview_path = it.path
+        self.pin_box.setVisible(it.label is Label.NORMAL)
         try:
             img = imread(it.path)
         except OSError as e:
@@ -184,6 +193,9 @@ class ThumbGrid(QWidget):
             for r in rows:
                 self._decorate(r)
             self._update_counts()
+            cur = self.view.currentRow()
+            if 0 <= cur < len(self.shown):
+                self.pin_box.setVisible(self.shown[cur].label is Label.NORMAL)
         else:
             self._refill()
         self.changed.emit()

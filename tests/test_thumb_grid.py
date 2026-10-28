@@ -120,3 +120,13 @@ def test_list_sets_usage_for_selection(qtbot, grid):
     assert "학습" in g.view.item(1).text()
     g.pin_buttons[Pin.NONE].click()
     assert ds.items[1].pin is Pin.NONE and "학습" not in g.view.item(1).text()
+
+
+def test_list_usage_hidden_for_interference(qtbot, grid):
+    g, ds = grid
+    select(g, [0])
+    g.buttons[Label.INTERFERENCE].click()
+    g.view.setCurrentRow(0)
+    assert g.pin_box.isHidden()
+    g.buttons[Label.NORMAL].click()
+    assert not g.pin_box.isHidden()

@@ -1,10 +1,10 @@
-"""라벨링 탭: 이미지 목록 · 캔버스(박스 그리기) · 라벨/고정 버튼."""
+"""한 장씩 탭: 위 한 줄(보기·라벨·용도) · 왼쪽 목록 · 오른쪽 사진(박스 그리기). 목록 화면과 같은 배치."""
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QButtonGroup, QComboBox, QGroupBox, QHBoxLayout, QLabel, QListWidget,
-                               QListWidgetItem, QPushButton, QRadioButton, QSplitter, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton,
+                               QSizePolicy, QVBoxLayout, QWidget)
 
 from impostor.dataset import Dataset, Item, Label, Pin
 from impostor.imageio import imread, load_mask
@@ -16,6 +16,7 @@ LABEL_COLOR = {Label.NORMAL: QColor(60, 160, 60), Label.INTERFERENCE: QColor(210
 PIN_TEXT = {Pin.NONE: "자동", Pin.TRAIN: "학습", Pin.EVAL: "시험"}
 PIN_HELP = "정상 사진을 학습/시험 중 어디에 쓸지. 보통은 자동 (예: 손글씨 판은 학습, 헷갈리는 정상은 시험)"
 FILTERS = ["전체", "정상", "간섭", "미분류", "파일 없음"]
+LIST_W = 420          # 목록 폭 — 목록 화면과 한 장씩 화면이 같게
 KEY_LABEL = {Qt.Key_N: Label.NORMAL, Qt.Key_I: Label.INTERFERENCE, Qt.Key_U: Label.UNLABELED}
 
 
@@ -28,59 +29,64 @@ class LabelTab(QWidget):
         self.mask = None
         self.shown: list[Item] = []
 
+        # 맨 위 한 줄: 목록 화면과 같은 배치 — 보기 · 개수 · 라벨 버튼 · 용도
+        self.top_bar = QWidget()
+        top = QHBoxLayout(self.top_bar)
+        top.setContentsMargins(0, 0, 0, 0)
         self.filter = QComboBox()
         self.filter.addItems(FILTERS)
         self.filter.currentIndexChanged.connect(self._refill)
         self.counts = QLabel()
-        self.list = QListWidget()
-        self.list.currentRowChanged.connect(self._show)
-        left = QWidget()
-        lv = QVBoxLayout(left)
-        lv.addWidget(self.filter)
-        lv.addWidget(self.counts)
-        lv.addWidget(self.list)
+        top.addWidget(QLabel("보기"))
+        top.addWidget(self.filter)
+        top.addWidget(self.counts)
+        top.addStretch()
+        top.addWidget(QLabel("이 사진을"))
+        self.label_buttons = {}
+        for lab, key in ((Label.NORMAL, "N"), (Label.INTERFERENCE, "I"), (Label.UNLABELED, "U")):
+            b = QPushButton(f"{LABEL_TEXT[lab]} ({key})", self.top_bar)
+            b.clicked.connect(lambda _=False, l=lab: self.set_label(l))
+            top.addWidget(b)
+            self.label_buttons[lab] = b
+        # 용도: 정상 사진을 학습/시험 중 어디에 쓸지 (정상일 때만 보임)
+        self.pin_box = QWidget()
+        pb = QHBoxLayout(self.pin_box)
+        pb.setContentsMargins(16, 0, 0, 0)
+        usage = QLabel("용도")
+        usage.setToolTip(PIN_HELP)
+        pb.addWidget(usage)
+        self.pin_buttons = {}
+        for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL):
+            b = QPushButton(PIN_TEXT[p])
+            b.setCheckable(True)
+            b.setToolTip(PIN_HELP)
+            b.clicked.connect(lambda _=False, pp=p: self.set_pin(pp))
+            pb.addWidget(b)
+            self.pin_buttons[p] = b
+        top.addWidget(self.pin_box)
 
+        self.list = QListWidget()
+        self.list.setFixedWidth(LIST_W)      # 목록 폭 고정 → 사진 영역 크기가 바뀌지 않는다
+        self.list.currentRowChanged.connect(self._show)
         self.canvas = ImageCanvas(editable=True)
         self.canvas.box_added.connect(self._box_added)
         self.canvas.box_deleted.connect(self._box_deleted)
+        middle = QHBoxLayout()
+        middle.addWidget(self.list)
+        middle.addWidget(self.canvas, 1)
 
-        right = QWidget()
-        rv = QVBoxLayout(right)
-        lab_box = QGroupBox("라벨")
-        lb = QVBoxLayout(lab_box)
-        self.label_buttons = {}
-        for lab, key in ((Label.NORMAL, "N"), (Label.INTERFERENCE, "I"), (Label.UNLABELED, "U")):
-            b = QPushButton(f"{LABEL_TEXT[lab]} ({key})")
-            b.clicked.connect(lambda _=False, l=lab: self.set_label(l))
-            lb.addWidget(b)
-            self.label_buttons[lab] = b
-        # 정상 사진을 학습/시험 중 어디에 쓸지 직접 지정 (보통은 자동)
-        self.pin_box = pin_box = QGroupBox("용도")
-        pin_box.setToolTip(PIN_HELP)
-        pb = QVBoxLayout(pin_box)
-        self.pin_group = QButtonGroup(self)
-        self.pin_buttons = {}
-        for p in Pin:
-            r = QRadioButton(PIN_TEXT[p])
-            r.clicked.connect(lambda _=False, pp=p: self.set_pin(pp))
-            self.pin_group.addButton(r)
-            pb.addWidget(r)
-            self.pin_buttons[p] = r
         self.info = QLabel()
-        self.info.setWordWrap(True)
-        help_ = QLabel("드래그: 박스 그리기 (그리면 간섭)\n박스 클릭 후 Delete: 삭제\n←/→: 이전/다음\n휠: 확대, 가운데 버튼: 이동")
-        help_.setStyleSheet("color: gray")
-        for w in (lab_box, pin_box, self.info, help_):
-            rv.addWidget(w)
-        rv.addStretch()
+        self.info.setStyleSheet("color: gray")
+        self.info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)   # 긴 경로가 레이아웃을 밀지 않게
+        hint = QLabel("드래그: 박스 그리기 (그리면 간섭) · 박스 클릭 후 Delete: 삭제 · ←/→: 이전/다음 · "
+                      "휠: 확대/축소 · 가운데 버튼: 이동")
+        hint.setStyleSheet("color: gray")
 
-        sp = QSplitter()
-        sp.addWidget(left)
-        sp.addWidget(self.canvas)
-        sp.addWidget(right)
-        sp.setStretchFactor(1, 1)
-        sp.setSizes([280, 900, 200])
-        QHBoxLayout(self).addWidget(sp)
+        v = QVBoxLayout(self)
+        v.addWidget(self.top_bar)
+        v.addLayout(middle, 1)
+        v.addWidget(self.info)
+        v.addWidget(hint)
 
         for w in (self.list, self.canvas):
             w.installEventFilter(self)
@@ -163,13 +169,19 @@ class LabelTab(QWidget):
                 self.canvas.set_boxes(it.boxes)
             except OSError as e:
                 self.canvas.clear_all(str(e))
-        self.pin_buttons[it.pin].setChecked(True)
+        self._show_usage(it)
         self.info.setText(it.path)
+
+    def _show_usage(self, it: Item) -> None:
+        self.pin_box.setVisible(it.label is Label.NORMAL)
+        for p, b in self.pin_buttons.items():
+            b.setChecked(p is it.pin)
 
     def _touched(self) -> None:
         r = self.list.currentRow()
         if r >= 0:
             self._decorate(r)
+            self._show_usage(self.shown[r])
         self._update_counts()
         self.changed.emit()
 
