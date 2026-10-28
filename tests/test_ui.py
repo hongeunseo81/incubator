@@ -152,6 +152,7 @@ def test_data_step_grid_double_click_switches_to_single(qtbot, small_ds):
     s = DataStep()
     qtbot.addWidget(s)
     s.set_dataset(small_ds)
+    s.set_algo("YOLO")
     s.grid.open_item.emit(small_ds.items[1])
     assert s.views.currentWidget() is s.label_tab and s.label_tab.current() is small_ds.items[1]
 
@@ -168,3 +169,17 @@ def test_scan_dialog_suggests_master_mask(qtbot, tmp_path):
     qtbot.addWidget(d)
     d.set_root(str(tmp_path))
     assert d.mask.text() == m
+
+
+def test_box_tab_hidden_for_patchcore(qtbot, small_ds):
+    from impostor.ui.wizard import DataStep
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(small_ds)
+    s.set_algo("PatchCore")
+    box_tab = s.views.indexOf(s.label_tab)
+    assert not s.views.isTabVisible(box_tab) and s.views.currentWidget() is s.grid
+    s.grid.open_item.emit(small_ds.items[1])          # 더블클릭해도 박스 탭으로 가지 않음
+    assert s.views.currentWidget() is s.grid
+    s.set_algo("YOLO")
+    assert s.views.isTabVisible(box_tab)

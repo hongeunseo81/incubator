@@ -135,6 +135,8 @@ class DataStep(QWidget):
         self.update_status()
 
     def open_single(self, item) -> None:
+        if self.algo != "YOLO":      # PatchCore 는 박스가 필요 없어 박스 탭이 없다
+            return
         self.views.setCurrentWidget(self.label_tab)
         self.label_tab.select_item(item)
 
@@ -151,8 +153,13 @@ class DataStep(QWidget):
 
     def set_algo(self, name: str | None) -> None:
         self.algo = name
-        self.hint.setText("YOLO: 간섭 이미지마다 이물에 박스를 그려야 합니다 (2장 이상)." if name == "YOLO"
-                          else "PatchCore: 정상/간섭 라벨만 있으면 됩니다. 박스는 선택입니다.")
+        yolo = name == "YOLO"
+        self.hint.setText("YOLO: 간섭 이미지마다 이물에 박스를 그려야 합니다 (2장 이상). '한 장씩' 탭에서 그리세요."
+                          if yolo else "PatchCore: 목록에서 정상/간섭만 나누면 됩니다 (정상으로 학습, 간섭으로 채점).")
+        box_tab = self.views.indexOf(self.label_tab)
+        self.views.setTabVisible(box_tab, yolo)
+        if not yolo:
+            self.views.setCurrentWidget(self.grid)
         self.update_status()
 
     def problems(self) -> list[str]:
@@ -161,7 +168,9 @@ class DataStep(QWidget):
         p = readiness(self.ds, self.algo)
         if self.ds is not None and self.mask_error:
             p.append(self.mask_error)
-        bad = [i for i in self.ds.items if i.path in self.size_bad and i.label is not Label.UNLABELED]             if self.ds is not None else []
+        bad = []
+        if self.ds is not None:
+            bad = [i for i in self.ds.items if i.path in self.size_bad and i.label is not Label.UNLABELED]
         if bad:
             p.append(f"마스크와 크기가 다른 이미지 {len(bad)}개 — 미분류로 바꾸세요")
         return p
