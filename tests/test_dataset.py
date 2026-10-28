@@ -7,7 +7,7 @@ import numpy as np
 from impostor.dataset import (Item, Label, Pin, import_folders, load_dataset, save_dataset,
                               scan_dataset)
 from impostor.imageio import imread, load_mask
-from tests.conftest import make_mask, write_png
+from tests.conftest import write_png
 
 PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
 

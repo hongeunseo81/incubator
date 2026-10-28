@@ -98,7 +98,8 @@ def test_results_cleared_after_edit(qtbot, wizard, tmp_path, monkeypatch):
     qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
     assert wizard.result.table.rowCount() == 1
     wizard.prev_btn.click()
-    wizard.data.label_tab.set_label(Label.UNLABELED)
+    wizard.data.grid.view.setCurrentRow(0)
+    wizard.data.grid.label_current(Label.UNLABELED)
     wizard.go(2)
     assert wizard.result.table.rowCount() == 0
 
@@ -117,7 +118,7 @@ def test_main_window_uses_wizard(qtbot, monkeypatch):
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Discard)
     w = MainWindow()
     qtbot.addWidget(w)
-    assert isinstance(w.wizard, Wizard) and w.label_tab is w.wizard.data.label_tab
+    assert isinstance(w.wizard, Wizard)
 
 
 def test_go_cannot_skip_ungated_steps(wizard):
@@ -165,7 +166,8 @@ def test_size_mismatch_cleared_by_unlabeling(wizard, tmp_path):
     write_png(Path(ds.items[0].path), np.zeros((50, 50, 3), np.uint8))
     choose(wizard, "PatchCore")
     wizard.set_dataset(ds)
-    wizard.data.label_tab.set_label(Label.UNLABELED)     # 첫 항목 = 크기 다른 이미지
+    wizard.data.grid.view.setCurrentRow(0)
+    wizard.data.grid.label_current(Label.UNLABELED)     # 첫 항목 = 크기 다른 이미지
     assert "크기가 다른" not in wizard.data.status.text()
 
 

@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from impostor.align import Aligner, reference_for, shift_box, shift_mask
 from tests.conftest import make_mask, write_png

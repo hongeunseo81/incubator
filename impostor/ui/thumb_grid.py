@@ -3,7 +3,7 @@
 그림은 미리 만들지 않는다(수백 장 디코딩이 화면을 멈추게 함). 지금 고른 한 장만 오른쪽에 미리보기.
 """
 import numpy as np
-from PySide6.QtCore import QEvent, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                                QPushButton, QSizePolicy, QVBoxLayout, QWidget)
@@ -12,7 +12,7 @@ from impostor.align import Aligner, describe, shift_mask
 from impostor.dataset import Dataset, Item, Label, Pin
 from impostor.imageio import imread, load_mask
 from impostor.ui.canvas import ImageCanvas
-from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, LIST_W, PIN_HELP, PIN_TEXT
+from impostor.ui.labels import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, LIST_W, PIN_HELP, PIN_TEXT
 
 FILTERS = ["전체", "정상", "간섭", "미분류"]
 
@@ -27,7 +27,6 @@ def mask_crop_box(mask: np.ndarray | None, pad: int = 20):
 
 class ThumbGrid(QWidget):
     changed = Signal()
-    open_item = Signal(object)   # Item — 더블클릭하면 한 장씩 보기로
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,14 +80,16 @@ class ThumbGrid(QWidget):
         self.view.setFixedWidth(LIST_W)      # 목록 폭 고정 → 미리보기 크기가 바뀌지 않는다
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.view.currentRowChanged.connect(self._preview)
-        self.view.itemDoubleClicked.connect(lambda w: self.open_item.emit(self.shown[self.view.row(w)]))
         self.view.installEventFilter(self)
         self.preview = ImageCanvas()     # 휠 확대·축소, 가운데 버튼 이동. 확대 상태는 다음 이미지에도 유지
+        self.preview.box_added.connect(self._box_added)       # 간섭 사진이면 바로 박스 그리기
+        self.preview.box_deleted.connect(self._box_deleted)
         self.preview.setMinimumWidth(400)
         self.preview.clear_all("항목을 클릭하면 여기에 보입니다")
         self.shift_label = QLabel()
         self.shift_label.setStyleSheet("color: gray")
-        self.shift_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)   # 글자 길이가 레이아웃을 밀지 않게
+        self.shift_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)   # 글자 길이·종류가 레이아웃을 밀지 않게
+        self.shift_label.setFixedHeight(self.shift_label.fontMetrics().height() + 6)
         right = QWidget()
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
@@ -99,7 +100,7 @@ class ThumbGrid(QWidget):
         sl.setContentsMargins(0, 0, 0, 0)
         sl.addWidget(self.view)
         sl.addWidget(right, 1)
-        hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · 휠 확대/축소 · 가운데 버튼 이동 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
+        hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · Ctrl/Shift 클릭으로 여러 개 선택 · 간섭 사진은 오른쪽에서 드래그로 박스 그리기, 박스 클릭 후 Delete로 삭제 · 휠 확대/축소 · 가운데 버튼 이동")
         hint.setStyleSheet("color: gray")
 
         v = QVBoxLayout(self)
@@ -146,7 +147,8 @@ class ThumbGrid(QWidget):
         w = self.view.item(row)
         miss = "  [파일 없음]" if not self.ds.exists(it) else ""
         usage = f"·{PIN_TEXT[it.pin]}" if it.pin is not Pin.NONE else ""
-        w.setText(f"[{LABEL_TEXT[it.label]}{usage}] {it.group}{miss}")
+        boxes = f"·박스{len(it.boxes)}" if it.boxes else ""
+        w.setText(f"[{LABEL_TEXT[it.label]}{usage}{boxes}] {it.group}{miss}")
         w.setForeground(QBrush(LABEL_COLOR[it.label]))
 
     def _update_counts(self) -> None:
@@ -181,6 +183,8 @@ class ThumbGrid(QWidget):
         if obj is self.view and e.type() == QEvent.KeyPress and e.key() in KEY_LABEL:
             self.apply(KEY_LABEL[e.key()])
             return True
+        if obj is self.view and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+            return self.preview.delete_selected()
         return super().eventFilter(obj, e)
 
     # ---- 동작 ----
@@ -211,6 +215,7 @@ class ThumbGrid(QWidget):
 
     def _show_usage(self, it: Item) -> None:
         self.pin_box.setVisible(it.label is Label.NORMAL)
+        self.preview.editable = it.label is Label.INTERFERENCE     # 간섭 사진만 박스를 그린다
         for p, b in self.pin_buttons.items():
             b.setChecked(p is it.pin)
 
@@ -218,6 +223,38 @@ class ThumbGrid(QWidget):
         cur = self.view.currentRow()
         if 0 <= cur < len(self.shown):
             self._show_usage(self.shown[cur])
+
+    def current(self) -> Item | None:
+        r = self.view.currentRow()
+        return self.shown[r] if 0 <= r < len(self.shown) else None
+
+    def label_current(self, label: Label) -> None:
+        """지금 보고 있는 사진 하나의 라벨을 바꾼다."""
+        r = self.view.currentRow()
+        if not 0 <= r < len(self.shown):
+            return
+        self.view.clearSelection()
+        self.view.item(r).setSelected(True)
+        self.apply(label)
+
+    def _box_added(self, box) -> None:
+        it = self.current()
+        if it is None or it.label is not Label.INTERFERENCE:
+            return
+        it.add_box(box)
+        self._after_box_change(it)
+
+    def _box_deleted(self, idx: int) -> None:
+        it = self.current()
+        if it is None or not 0 <= idx < len(it.boxes):
+            return
+        del it.boxes[idx]
+        self._after_box_change(it)
+
+    def _after_box_change(self, it: Item) -> None:
+        self.preview.set_boxes(it.boxes)
+        self._decorate(self.view.currentRow())
+        self.changed.emit()
 
     def rest_to_normal(self) -> None:
         if self.ds is not None and self.ds.unlabeled_to_normal():

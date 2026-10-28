@@ -67,13 +67,6 @@ def test_rest_to_normal(grid):
     assert [i.label for i in ds.items] == [Label.INTERFERENCE, Label.NORMAL]
 
 
-def test_double_click_opens_item(qtbot, grid):
-    g, ds = grid
-    with qtbot.waitSignal(g.open_item, timeout=1000) as sig:
-        g.view.itemDoubleClicked.emit(g.view.item(1))
-    assert sig.args == [ds.items[1]]
-
-
 def test_filter(grid):
     g, ds = grid
     select(g, [0])
@@ -143,13 +136,46 @@ def test_list_usage_shows_auto_by_default_and_reflects_choice(qtbot, grid):
     assert g.pin_buttons[Pin.TRAIN].isChecked() and not g.pin_buttons[Pin.NONE].isChecked()
 
 
-def test_same_wording_in_both_views(qtbot, grid):
-    from PySide6.QtWidgets import QLabel
-    from impostor.ui.label_tab import LabelTab
+# ---- 목록에서 바로 박스 그리기 (간섭 사진만) ----
+def test_preview_editable_only_for_interference(qtbot, grid):
     g, ds = grid
-    tab = LabelTab()
-    qtbot.addWidget(tab)
-    texts_g = {w.text() for w in g.findChildren(QLabel)}
-    texts_t = {w.text() for w in tab.findChildren(QLabel)}
-    assert "선택한 항목을" in texts_g and "선택한 항목을" in texts_t
-    assert "이 사진을" not in texts_t
+    g.view.setCurrentRow(0)
+    assert not g.preview.editable                       # 미분류
+    g.label_current(Label.INTERFERENCE)
+    assert g.preview.editable
+    g.label_current(Label.NORMAL)
+    assert not g.preview.editable
+
+
+def test_draw_and_delete_box_in_list(qtbot, grid):
+    g, ds = grid
+    g.view.setCurrentRow(1)
+    g.label_current(Label.INTERFERENCE)
+    with qtbot.waitSignal(g.changed, timeout=1000):
+        g.preview.box_added.emit((1, 1, 20, 20))
+    assert ds.items[1].boxes == [(1, 1, 20, 20)] and "박스1" in g.view.item(1).text()
+    g.preview.box_deleted.emit(0)
+    assert ds.items[1].boxes == [] and "박스" not in g.view.item(1).text()
+
+
+def test_preview_size_stable_when_switching(qtbot, grid):
+    g, ds = grid
+    g.resize(1200, 700)
+    g.show()
+    qtbot.waitExposed(g)
+    g.view.setCurrentRow(0)
+    before = g.preview.size()
+    g.shift_label.setText("x" * 500)
+    g.view.setCurrentRow(1)
+    qtbot.wait(10)
+    assert g.preview.size() == before
+
+
+def test_missing_file_listed(qtbot, small_ds):
+    import os
+    os.remove(small_ds.items[0].path)
+    g = ThumbGrid()
+    qtbot.addWidget(g)
+    g.set_dataset(small_ds)
+    g.view.setCurrentRow(0)
+    assert "파일 없음" in g.view.item(0).text()

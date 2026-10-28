@@ -104,3 +104,9 @@ def make_shifted(tmp_path: Path, n_normal=12, n_interf=2, size=224, seed=1):
         items.append(it)
         shifts[it.path] = (dx, dy)
     return Dataset("shifted", mask, items), shifts
+
+
+@pytest.fixture
+def small_ds(tmp_images):
+    from impostor.dataset import scan_dataset
+    return scan_dataset("t", tmp_images.root, "*/cam_03_IMG_Texture_8Bit.png", tmp_images.mask)

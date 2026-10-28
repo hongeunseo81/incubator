@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSlider, QSplitter,
+from PySide6.QtWidgets import (QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QSlider, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from impostor.algorithms import REGISTRY
@@ -16,7 +16,7 @@ from impostor.metrics import auto_threshold, evaluate
 from impostor.readiness import Snapshot, snapshot
 from impostor.split import SplitError
 from impostor.ui.canvas import ImageCanvas
-from impostor.ui.label_tab import LABEL_TEXT
+from impostor.ui.labels import LABEL_TEXT
 from impostor.ui.worker import RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
@@ -108,6 +108,8 @@ class ResultView(QWidget):
         self.view_row = QHBoxLayout()
         self.shift_label = QLabel()
         self.shift_label.setStyleSheet("color: gray")
+        self.shift_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)   # 글자가 사진 영역을 밀지 않게
+        self.shift_label.setFixedHeight(self.shift_label.fontMetrics().height() + 6)
         views = QWidget()
         vv = QVBoxLayout(views)
         vv.setContentsMargins(0, 0, 0, 0)

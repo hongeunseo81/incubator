@@ -3,65 +3,11 @@ import os
 import pytest
 from PySide6.QtCore import Qt
 
-from impostor.dataset import Label, Pin, scan_dataset
-from impostor.ui.label_tab import LabelTab
+from impostor.dataset import Label
 
 PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
 
 
-@pytest.fixture
-def small_ds(tmp_images):
-    return scan_dataset("t", tmp_images.root, PATTERN, tmp_images.mask)
-
-
-@pytest.fixture
-def label_tab(qtbot, small_ds):
-    tab = LabelTab()
-    qtbot.addWidget(tab)
-    tab.set_dataset(small_ds)
-    return tab
-
-
-def test_label_tab_shortcut_sets_normal(qtbot, label_tab, small_ds):
-    qtbot.keyClick(label_tab.list, Qt.Key_N)
-    assert small_ds.items[0].label is Label.NORMAL
-
-
-def test_shortcut_moves_to_next(qtbot, label_tab, small_ds):
-    qtbot.keyClick(label_tab.list, Qt.Key_Right)
-    qtbot.keyClick(label_tab.list, Qt.Key_U)
-    qtbot.keyClick(label_tab.list, Qt.Key_I)
-    assert small_ds.items[1].label is Label.INTERFERENCE
-
-
-def test_box_added_marks_interference(label_tab, small_ds):
-    label_tab.canvas.box_added.emit((1, 1, 20, 20))
-    assert small_ds.items[0].label is Label.INTERFERENCE
-    assert small_ds.items[0].boxes == [(1, 1, 20, 20)]
-
-
-def test_box_deleted(label_tab, small_ds):
-    label_tab.canvas.box_added.emit((1, 1, 20, 20))
-    label_tab.canvas.box_deleted.emit(0)
-    assert small_ds.items[0].boxes == []
-
-
-def test_pin_buttons(label_tab, small_ds):
-    label_tab.pin_buttons[Pin.EVAL].click()
-    assert small_ds.items[0].pin is Pin.EVAL
-
-
-def test_changed_signal(qtbot, label_tab):
-    with qtbot.waitSignal(label_tab.changed, timeout=1000):
-        qtbot.keyClick(label_tab.list, Qt.Key_N)
-
-
-def test_missing_file_does_not_crash(qtbot, small_ds):
-    os.remove(small_ds.items[0].path)
-    tab = LabelTab()
-    qtbot.addWidget(tab)
-    tab.set_dataset(small_ds)
-    assert "파일 없음" in tab.list.item(0).text()
 
 
 # ---- Task 7: 메인 창 ----
@@ -99,14 +45,18 @@ def test_open_dataset_warns_missing(main_window, small_ds, tmp_path, monkeypatch
 def test_dirty_marker(qtbot, main_window, small_ds):
     main_window.set_dataset(small_ds)
     assert "*" not in main_window.windowTitle()
-    qtbot.keyClick(main_window.label_tab.list, Qt.Key_N)
+    main_window.wizard.data.grid.view.setCurrentRow(0)
+    main_window.wizard.data.grid.view.item(0).setSelected(True)
+    qtbot.keyClick(main_window.wizard.data.grid.view, Qt.Key_N)
     assert "*" in main_window.windowTitle()
 
 
 def test_save_clears_dirty(qtbot, main_window, small_ds, tmp_path, monkeypatch):
     monkeypatch.setattr("impostor.ui.app.DATASET_DIR", tmp_path)
     main_window.set_dataset(small_ds)
-    qtbot.keyClick(main_window.label_tab.list, Qt.Key_N)
+    main_window.wizard.data.grid.view.setCurrentRow(0)
+    main_window.wizard.data.grid.view.item(0).setSelected(True)
+    qtbot.keyClick(main_window.wizard.data.grid.view, Qt.Key_N)
     main_window.save()
     assert (tmp_path / "t.json").exists() and "*" not in main_window.windowTitle()
 
@@ -147,16 +97,6 @@ def test_scan_dialog_lists_kinds(qtbot, tmp_images):
     assert len(d.build().items) == 2
 
 
-def test_data_step_grid_double_click_switches_to_single(qtbot, small_ds):
-    from impostor.ui.wizard import DataStep
-    s = DataStep()
-    qtbot.addWidget(s)
-    s.set_dataset(small_ds)
-    s.set_algo("YOLO")
-    s.grid.open_item.emit(small_ds.items[1])
-    assert s.views.currentWidget() is s.label_tab and s.label_tab.current() is small_ds.items[1]
-
-
 def test_scan_dialog_suggests_master_mask(qtbot, tmp_path):
     import numpy as np
     from tests.conftest import write_png
@@ -169,20 +109,6 @@ def test_scan_dialog_suggests_master_mask(qtbot, tmp_path):
     qtbot.addWidget(d)
     d.set_root(str(tmp_path))
     assert d.mask.text() == m
-
-
-def test_box_tab_hidden_for_patchcore(qtbot, small_ds):
-    from impostor.ui.wizard import DataStep
-    s = DataStep()
-    qtbot.addWidget(s)
-    s.set_dataset(small_ds)
-    s.set_algo("PatchCore")
-    box_tab = s.views.indexOf(s.label_tab)
-    assert not s.views.isTabVisible(box_tab) and s.views.currentWidget() is s.grid
-    s.grid.open_item.emit(small_ds.items[1])          # 더블클릭해도 박스 탭으로 가지 않음
-    assert s.views.currentWidget() is s.grid
-    s.set_algo("YOLO")
-    assert s.views.isTabVisible(box_tab)
 
 
 def _fem_like_root(tmp_path):
@@ -286,38 +212,10 @@ def test_align_toggle_disabled_without_reference(qtbot, small_ds):
     assert not s.align_check.isEnabled() and not s.align_check.isChecked()
 
 
-def test_usage_shown_only_for_normal(qtbot, label_tab, small_ds):
-    assert [label_tab.pin_buttons[p].text() for p in (Pin.NONE, Pin.TRAIN, Pin.EVAL)] == ["자동", "학습", "시험"]
-    assert label_tab.pin_box.isHidden()                       # 첫 항목은 미분류
-    label_tab.set_label(Label.NORMAL)
-    assert not label_tab.pin_box.isHidden()
-    label_tab.set_label(Label.INTERFERENCE)
-    assert label_tab.pin_box.isHidden()
-
-
-def test_label_tab_layout_matches_list(qtbot, small_ds):
-    from impostor.ui.thumb_grid import LIST_W, ThumbGrid
-    tab = LabelTab()
-    qtbot.addWidget(tab)
-    tab.set_dataset(small_ds)
-    assert tab.list.minimumWidth() == tab.list.maximumWidth() == LIST_W
-    g = ThumbGrid()
-    qtbot.addWidget(g)
-    assert g.view.minimumWidth() == g.view.maximumWidth() == LIST_W
-    # 라벨 버튼이 목록 위 같은 줄(맨 위 줄)에 있다
-    assert tab.label_buttons[Label.NORMAL].parent() is tab.top_bar
-
-
-def test_label_tab_canvas_size_stable(qtbot, small_ds):
-    small_ds.items[1].path = small_ds.items[1].path   # 경로 길이와 무관해야 함
-    tab = LabelTab()
-    qtbot.addWidget(tab)
-    tab.resize(1200, 700)
-    tab.set_dataset(small_ds)
-    tab.show()
-    qtbot.waitExposed(tab)
-    before = tab.canvas.size()
-    tab.info.setText("C:/" + "아주긴경로/" * 40 + "x.png")
-    tab.step(1)
-    qtbot.wait(10)
-    assert tab.canvas.size() == before
+def test_data_step_has_single_list_view(qtbot, small_ds):
+    from PySide6.QtWidgets import QTabWidget
+    from impostor.ui.wizard import DataStep
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(small_ds)
+    assert not s.findChildren(QTabWidget) and not hasattr(s, "label_tab")

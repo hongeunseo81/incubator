@@ -3,14 +3,13 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QSpinBox, QStackedWidget, QTabWidget, QVBoxLayout, QWidget)
+                               QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
 from impostor import dataset as dataset_mod
-from impostor.algorithms import PARAMS, REGISTRY, defaults
+from impostor.algorithms import PARAMS, REGISTRY
 from impostor.dataset import Dataset, Label
 from impostor.align import reference_for
 from impostor.readiness import readiness
-from impostor.ui.label_tab import LabelTab
 from impostor.ui.result_view import ResultView
 from impostor.ui.thumb_grid import ThumbGrid
 
@@ -109,22 +108,15 @@ class DataStep(QWidget):
         master_row.addWidget(self.align_check)
         master_row.addWidget(self.master_label)
         master_row.addStretch()
-        self.label_tab = LabelTab()
-        self.label_tab.changed.connect(self._edited)
         self.grid = ThumbGrid()
         self.grid.changed.connect(self._edited)
-        self.grid.open_item.connect(self.open_single)
-        self.views = QTabWidget()
-        self.views.addTab(self.grid, "목록 (여러 개 한 번에)")
-        self.views.addTab(self.label_tab, "한 장씩 (박스 그리기)")
-        self.views.currentChanged.connect(self._view_switched)
         self.status = QLabel()
         self.status.setWordWrap(True)
         v = QVBoxLayout(self)
         v.addLayout(bar)
         v.addLayout(master_row)
         v.addWidget(self.hint)
-        v.addWidget(self.views, 1)
+        v.addWidget(self.grid, 1)
         v.addWidget(self.status)
         self.refresh_saved()
         self.update_status()
@@ -158,7 +150,6 @@ class DataStep(QWidget):
             self.size_bad, self.mask_error = set(), str(e)
         else:
             self.mask_error = ""
-        self.label_tab.set_dataset(ds)
         self.grid.set_dataset(ds)
         self._update_master_label()
         self.refresh_saved()
@@ -206,32 +197,11 @@ class DataStep(QWidget):
         self.set_dataset(self.ds)
         self.changed.emit()
 
-    def open_single(self, item) -> None:
-        if self.algo != "YOLO":      # PatchCore 는 박스가 필요 없어 박스 탭이 없다
-            return
-        self.views.setCurrentWidget(self.label_tab)
-        self.label_tab.select_item(item)
-
-    def _view_switched(self, _idx: int) -> None:
-        # 다른 보기에서 바뀐 라벨을 반영
-        if self.views.currentWidget() is self.grid:
-            self.grid.refresh()
-            return
-        cur = self.label_tab.current()
-        if cur is not None:
-            self.label_tab.select_item(cur)
-        elif self.ds is not None:
-            self.label_tab.set_dataset(self.ds)
-
     def set_algo(self, name: str | None) -> None:
         self.algo = name
-        yolo = name == "YOLO"
-        self.hint.setText("YOLO: 간섭 이미지마다 이물에 박스를 그려야 합니다 (2장 이상). '한 장씩' 탭에서 그리세요."
-                          if yolo else "PatchCore: 목록에서 정상/간섭만 나누면 됩니다 (정상으로 학습, 간섭으로 채점).")
-        box_tab = self.views.indexOf(self.label_tab)
-        self.views.setTabVisible(box_tab, yolo)
-        if not yolo:
-            self.views.setCurrentWidget(self.grid)
+        self.hint.setText("YOLO: 간섭 사진을 고르고 오른쪽 사진 위에 드래그해서 이물에 박스를 그리세요 (2장 이상)."
+                          if name == "YOLO" else
+                          "PatchCore: 목록에서 정상/간섭만 나누면 됩니다 (정상으로 학습, 간섭으로 채점). 박스는 선택.")
         self.update_status()
 
     def problems(self) -> list[str]:

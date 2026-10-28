@@ -20,8 +20,7 @@ class MainWindow(QMainWindow):
         self.resize(1500, 900)
 
         self.wizard = Wizard()
-        self.label_tab = self.wizard.data.label_tab
-        self.label_tab.changed.connect(lambda: self._set_dirty(True))
+        self.wizard.data.changed.connect(lambda: self._set_dirty(True))
         data = self.wizard.data
         data.new_scan_requested.connect(self.new_scan)
         data.import_requested.connect(self.new_import)
