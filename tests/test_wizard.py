@@ -226,3 +226,14 @@ def test_no_redundant_texts(wizard):
     from impostor.ui.wizard import DataStep
     d = wizard.data
     assert not hasattr(d, "status") and not hasattr(d, "hint")
+
+
+def test_tabs_are_big(wizard):
+    assert all(t.minimumHeight() >= 40 for t in wizard.tabs)
+
+
+def test_params_in_section(wizard, tmp_path):
+    choose(wizard, "PatchCore")
+    wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
+    tab(wizard, 2)
+    assert wizard.param_section.isAncestorOf(wizard.params)

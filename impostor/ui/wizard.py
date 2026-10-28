@@ -12,6 +12,7 @@ from impostor.align import reference_for
 from impostor.readiness import readiness
 from impostor.ui import theme
 from impostor.ui.result_view import ResultView
+from impostor.ui.sections import section
 from impostor.ui.thumb_grid import ThumbGrid
 
 STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 실행·결과"]
@@ -20,25 +21,10 @@ DESCRIPTIONS = {
     "PatchCore": "이상탐지 — 정상 이미지만으로 학습합니다. 처음 보는 이물도 잡습니다.\n필요: 정상/간섭 라벨 (박스는 선택, 그리면 위치 적중 계산)",
     "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
 }
+TAB_H = 42                   # 단계 탭 높이
 CARD_W, CARD_H = 440, 280   # 알고리즘 카드 크기
 VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
 BAD_STYLE = f"color: {theme.ALERT}"
-
-
-def section(title: str) -> tuple[QFrame, QVBoxLayout]:
-    """제목이 붙은 테두리 카드. (카드, 안쪽 레이아웃)"""
-    frame = QFrame()
-    frame.setObjectName("section")
-    frame.setStyleSheet(f"QFrame#section {{ background: {theme.PANEL_2}; border: 1px solid {theme.EDGE}; "
-                        f"border-top: 3px solid {theme.ACCENT}; border-radius: 8px; }}")
-    v = QVBoxLayout(frame)
-    v.setContentsMargins(14, 10, 14, 12)
-    v.setSpacing(8)
-    head = QLabel(title)
-    head.setStyleSheet(f"color: {theme.ACCENT}; font-weight: bold; font-size: 15px; font-family: {theme.MONO}; "
-                       f"background: transparent; border: 0;")
-    v.addWidget(head)
-    return frame, v
 
 
 def _row_title(text: str) -> QLabel:
@@ -286,10 +272,11 @@ class ParamStep(QWidget):
         self.setMaximumWidth(320)
         self.title = QLabel()
         self.form_host = QWidget()
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet("background: transparent")            # 카드 바탕이 그대로 보이게
         self.reset_btn = QPushButton("기본값으로")
         self.reset_btn.clicked.connect(self.reset)
         v = QVBoxLayout(self)
-        v.addWidget(self.title)
         v.addWidget(self.form_host)
         v.addWidget(self.reset_btn, 0, Qt.AlignLeft)
         v.addStretch()
@@ -352,7 +339,10 @@ class Wizard(QWidget):
         run_page = QWidget()
         rp = QHBoxLayout(run_page)
         rp.setContentsMargins(0, 0, 0, 0)
-        rp.addWidget(self.params)
+        self.param_section, pv = section("■ 파라미터")
+        pv.addWidget(self.params)
+        rp.setSpacing(10)
+        rp.addWidget(self.param_section)
         rp.addWidget(self.result, 1)
         self.stack = QStackedWidget()
         for w in (self.algo, self.data, run_page):
@@ -364,11 +354,12 @@ class Wizard(QWidget):
         for k, t in enumerate(STEP_TITLES):
             b = QPushButton(t)
             b.setCursor(Qt.PointingHandCursor)
+            b.setMinimumHeight(TAB_H)
             b.clicked.connect(lambda _=False, i=k: self.go(i))
             bar.addWidget(b)
             self.tabs.append(b)
         self.reason = QLabel()
-        self.reason.setStyleSheet(BAD_STYLE)
+        self.reason.setStyleSheet(BAD_STYLE + "; font-size: 14px")
         bar.addSpacing(12)
         bar.addWidget(self.reason)
         bar.addStretch()
@@ -471,10 +462,10 @@ class Wizard(QWidget):
             b.setEnabled(not running and (k == self.step or self.reachable(k)))
             b.setToolTip("" if self.reachable(k) else why)
             if k == self.step:
-                style = (f"QPushButton {{ padding: 6px 16px; border-radius: 12px; border: 0; font-weight: bold; "
+                style = (f"QPushButton {{ padding: 8px 26px; border-radius: 20px; border: 0; font-weight: bold; font-size: 16px; "
                          f"background: {theme.ACCENT}; color: {theme.BG}; }}")
             else:
-                style = (f"QPushButton {{ padding: 6px 16px; border-radius: 12px; background: {theme.PANEL}; "
+                style = (f"QPushButton {{ padding: 8px 26px; border-radius: 20px; font-size: 16px; background: {theme.PANEL}; "
                          f"color: {theme.TEXT}; border: 1px solid {theme.GRID}; }} "
                          f"QPushButton:hover {{ border-color: {theme.ACCENT}; }} "
                          f"QPushButton:disabled {{ color: #3a4a5e; }}")

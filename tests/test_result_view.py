@@ -178,3 +178,21 @@ def test_target_banner_and_header(qtbot, make_view):
     assert "TARGET LOCKED" in v.banner.text()
     v.images.selectRow(v.images.rowCount() - 1)  # 최저 = 정상 0.5
     assert "CLEAR" in v.banner.text()
+
+
+def test_no_target_on_clear(qtbot, make_view):
+    v, ds = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    v.res.peaks = {p: (10, 10) for p in v.res.scores}      # 모든 이미지에 이상 지점이 있다고 치고
+    v.images.selectRow(0)                                   # 점수 최고 = NG
+    assert v.views["Fake"].target_items
+    v.images.selectRow(v.images.rowCount() - 1)             # 점수 최저 = CLEAR
+    assert all(not c.target_items for c in v.views.values())
+
+
+def test_result_sections_and_big_slider(qtbot, make_view):
+    v, ds = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    assert list(v.sections) == ["실행", "판정 기준", "이미지"]
+    assert v.sections["판정 기준"].isAncestorOf(v.slider)
+    assert v.slider.slider.minimumHeight() >= 28

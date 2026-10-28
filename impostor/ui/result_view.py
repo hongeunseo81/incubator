@@ -18,6 +18,7 @@ from impostor.split import SplitError
 from impostor.ui.canvas import ImageCanvas
 from impostor.ui import theme
 from impostor.ui.labels import LABEL_TEXT
+from impostor.ui.sections import section
 from impostor.ui.worker import RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
@@ -34,11 +35,24 @@ class ThresholdRow(QWidget):
         self.lo, self.hi, self.auto, self.value = lo, hi, auto, auto
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, STEPS)
+        self.slider.setMinimumHeight(32)
+        self.slider.setStyleSheet(
+            f"QSlider::groove:horizontal {{ height: 10px; border-radius: 5px; "
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {theme.ACCENT}, stop:1 {theme.ALERT}); }} "
+            f"QSlider::handle:horizontal {{ background: white; border: 3px solid {theme.ALERT}; "
+            f"width: 22px; margin: -9px 0; border-radius: 13px; }}")
         self.value_label = QLabel()
+        self.value_label.setMinimumWidth(90)
+        self.value_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
+                                       f"font-family: {theme.MONO}")
         self.auto_btn = QPushButton("자동")
+        low = QLabel("← 더 많이 잡음")
+        high = QLabel("오검출 줄임 →")
+        for lab in (low, high):
+            lab.setStyleSheet(f"color: {theme.MUTED}")
         h = QHBoxLayout(self)
         h.setContentsMargins(0, 0, 0, 0)
-        for w in (QLabel("임계값"), self.slider, self.value_label, self.auto_btn):
+        for w in (low, self.slider, high, self.value_label, self.auto_btn):
             h.addWidget(w)
         h.setStretch(1, 1)
         self.slider.valueChanged.connect(self._slid)
@@ -95,9 +109,9 @@ class ResultView(QWidget):
         self.bar.setRange(0, 1000)
         self.stage = QLabel()
         top = QHBoxLayout()
-        for w in (self.title, self.run_btn, self.stop_btn, self.bar, self.stage):
+        for w in (self.run_btn, self.stop_btn, self.bar, self.stage):
             top.addWidget(w)
-        top.setStretch(3, 1)
+        top.setStretch(2, 1)
 
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
@@ -128,12 +142,21 @@ class ResultView(QWidget):
         bottom.addWidget(views)
         bottom.setSizes([380, 1000])
 
+        run_box, rv = section("■ 실행")
+        rv.addLayout(top)
+        rv.addWidget(self.header)
+        rv.addWidget(self.table)
+        thr_box, tv = section("■ 판정 기준 (임계값 이상이면 NG)")
+        tv.addLayout(self.slider_box)
+        img_box, iv = section("■ 이미지")
+        iv.addWidget(bottom, 1)
+        self.sections = {"실행": run_box, "판정 기준": thr_box, "이미지": img_box}
         v = QVBoxLayout(self)
-        v.addLayout(top)
-        v.addWidget(self.header)
-        v.addWidget(self.table)
-        v.addLayout(self.slider_box)
-        v.addWidget(bottom, 1)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(10)
+        v.addWidget(run_box)
+        v.addWidget(thr_box)
+        v.addWidget(img_box, 1)
 
     # ---- 상태 ----
     @property
@@ -316,4 +339,4 @@ class ResultView(QWidget):
                 if it.path in self.res.pred_boxes:
                     canvas.set_pred_boxes(self.res.pred_boxes[it.path])
             canvas.set_boxes(it.boxes)
-            canvas.set_target(self.res.peaks.get(it.path), locked)
+            canvas.set_target(self.res.peaks.get(it.path) if locked else None, locked)   # 정상 판정엔 조준선 없음
