@@ -3,7 +3,7 @@ import os
 import pytest
 from PySide6.QtCore import Qt
 
-from impostor.dataset import Label
+from incubator.dataset import Label
 
 PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
 
@@ -13,9 +13,9 @@ PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
 # ---- Task 7: 메인 창 ----
 from PySide6.QtWidgets import QMessageBox
 
-from impostor.dataset import save_dataset
-from impostor.ui.app import MainWindow
-from impostor.ui.dataset_dialogs import ImportDialog, default_label_for
+from incubator.dataset import save_dataset
+from incubator.ui.app import MainWindow
+from incubator.ui.dataset_dialogs import ImportDialog, default_label_for
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def test_dirty_marker(qtbot, main_window, small_ds):
 
 
 def test_save_clears_dirty(qtbot, main_window, small_ds, tmp_path, monkeypatch):
-    monkeypatch.setattr("impostor.ui.app.DATASET_DIR", tmp_path)
+    monkeypatch.setattr("incubator.ui.app.DATASET_DIR", tmp_path)
     main_window.set_dataset(small_ds)
     main_window.wizard.data.grid.view.setCurrentRow(0)
     main_window.wizard.data.grid.view.item(0).setSelected(True)
@@ -85,7 +85,7 @@ def test_import_dialog_builds_dataset(qtbot, tmp_path):
 
 
 def test_scan_dialog_lists_kinds(qtbot, tmp_images):
-    from impostor.ui.dataset_dialogs import ScanDialog
+    from incubator.ui.dataset_dialogs import ScanDialog
     d = ScanDialog()
     qtbot.addWidget(d)
     d.set_root(tmp_images.root)
@@ -100,7 +100,7 @@ def test_scan_dialog_lists_kinds(qtbot, tmp_images):
 def test_scan_dialog_suggests_master_mask(qtbot, tmp_path):
     import numpy as np
     from tests.conftest import write_png
-    from impostor.ui.dataset_dialogs import ScanDialog
+    from incubator.ui.dataset_dialogs import ScanDialog
     img = np.zeros((48, 64, 3), np.uint8)
     write_png(tmp_path / "Source" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", img)
     m = write_png(tmp_path / "Master" / "JG" / "fastenLHCam_02_IMG_Kungfu.png", img)
@@ -123,7 +123,7 @@ def _fem_like_root(tmp_path):
 
 
 def test_scan_dialog_only_root_needed(qtbot, tmp_path, monkeypatch):
-    from impostor.ui.dataset_dialogs import ScanDialog
+    from incubator.ui.dataset_dialogs import ScanDialog
     d = ScanDialog()
     qtbot.addWidget(d)
     assert d.field_labels() == ["루트 폴더", "데이터셋 이름", "카메라 이름", "마스터 파일"]
@@ -138,7 +138,7 @@ def test_scan_dialog_only_root_needed(qtbot, tmp_path, monkeypatch):
 def test_scan_dialog_opens_details_when_no_mask(qtbot, tmp_path):
     import numpy as np
     from tests.conftest import write_png
-    from impostor.ui.dataset_dialogs import ScanDialog
+    from incubator.ui.dataset_dialogs import ScanDialog
     write_png(tmp_path / "r" / "car1" / "fastenLHCam_02_IMG_Texture_8Bit.png", np.zeros((4, 4, 3), np.uint8))
     d = ScanDialog()
     qtbot.addWidget(d)
@@ -147,8 +147,8 @@ def test_scan_dialog_opens_details_when_no_mask(qtbot, tmp_path):
 
 
 def test_scan_name_avoids_overwrite(qtbot, tmp_path, monkeypatch):
-    from impostor import dataset as dataset_mod
-    from impostor.ui.dataset_dialogs import ScanDialog
+    from incubator import dataset as dataset_mod
+    from incubator.ui.dataset_dialogs import ScanDialog
     monkeypatch.setattr(dataset_mod, "DATASET_DIR", tmp_path / "saved")
     (tmp_path / "saved").mkdir()
     (tmp_path / "saved" / "clip_fastenLHCam_02.json").write_text("{}")
@@ -161,7 +161,7 @@ def test_scan_name_avoids_overwrite(qtbot, tmp_path, monkeypatch):
 def test_scan_dialog_has_no_exclude_field_but_skips_master(qtbot, tmp_path):
     import numpy as np
     from tests.conftest import write_png
-    from impostor.ui.dataset_dialogs import ScanDialog
+    from incubator.ui.dataset_dialogs import ScanDialog
     root = _fem_like_root(tmp_path)
     write_png(root / "Master" / "JG" / "fastenLHCam_02_IMG_Texture_8Bit.png", np.zeros((48, 64, 3), np.uint8))
     d = ScanDialog()
@@ -173,7 +173,7 @@ def test_scan_dialog_has_no_exclude_field_but_skips_master(qtbot, tmp_path):
 
 def test_data_step_shows_and_changes_master_file(qtbot, tmp_path):
     from tests.conftest import make_shifted
-    from impostor.ui.wizard import DataStep
+    from incubator.ui.wizard import DataStep
     ds, _ = make_shifted(tmp_path)
     real_mask = ds.mask_path
     ds.mask_path = str(tmp_path / "Master" / "copy_of_mask.png")
@@ -192,7 +192,7 @@ def test_data_step_shows_and_changes_master_file(qtbot, tmp_path):
 
 def test_master_row_layout_and_align_toggle(qtbot, tmp_path):
     from tests.conftest import make_shifted
-    from impostor.ui.wizard import DataStep
+    from incubator.ui.wizard import DataStep
     ds, _ = make_shifted(tmp_path)
     s = DataStep()
     qtbot.addWidget(s)
@@ -205,7 +205,7 @@ def test_master_row_layout_and_align_toggle(qtbot, tmp_path):
 
 
 def test_align_toggle_disabled_without_reference(qtbot, small_ds):
-    from impostor.ui.wizard import DataStep
+    from incubator.ui.wizard import DataStep
     s = DataStep()
     qtbot.addWidget(s)
     s.set_dataset(small_ds)
@@ -214,7 +214,7 @@ def test_align_toggle_disabled_without_reference(qtbot, small_ds):
 
 def test_data_step_has_single_list_view(qtbot, small_ds):
     from PySide6.QtWidgets import QTabWidget
-    from impostor.ui.wizard import DataStep
+    from incubator.ui.wizard import DataStep
     s = DataStep()
     qtbot.addWidget(s)
     s.set_dataset(small_ds)
@@ -222,7 +222,7 @@ def test_data_step_has_single_list_view(qtbot, small_ds):
 
 
 def test_data_step_is_split_into_sections(qtbot, small_ds):
-    from impostor.ui.wizard import DataStep, Wizard
+    from incubator.ui.wizard import DataStep, Wizard
     s = DataStep()
     qtbot.addWidget(s)
     s.set_dataset(small_ds)
@@ -236,7 +236,7 @@ def test_data_step_is_split_into_sections(qtbot, small_ds):
 
 def test_main_window_has_no_menu_bar_but_keeps_shortcuts(qtbot, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
-    from impostor.ui.app import MainWindow
+    from incubator.ui.app import MainWindow
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Discard)
     w = MainWindow()
     qtbot.addWidget(w)
@@ -245,7 +245,7 @@ def test_main_window_has_no_menu_bar_but_keeps_shortcuts(qtbot, monkeypatch):
 
 
 def test_data_step_hides_boxes_for_patchcore(qtbot, small_ds):
-    from impostor.ui.wizard import DataStep
+    from incubator.ui.wizard import DataStep
     s = DataStep()
     qtbot.addWidget(s)
     s.set_dataset(small_ds)

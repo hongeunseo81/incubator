@@ -1,9 +1,9 @@
 import pytest
 
-from impostor.algorithms.base import Cancelled, eval_items
-from impostor.algorithms.patchcore import PatchCore
-from impostor.metrics import location_hit
-from impostor.split import split_normals
+from incubator.algorithms.base import Cancelled, eval_items
+from incubator.algorithms.patchcore import PatchCore
+from incubator.metrics import location_hit
+from incubator.split import split_normals
 from tests.conftest import make_synthetic
 
 pytestmark = pytest.mark.slow

@@ -1,4 +1,4 @@
-from impostor.ui.boxes import normalize_box
+from incubator.ui.boxes import normalize_box
 
 
 def test_normalize_reverse_drag():

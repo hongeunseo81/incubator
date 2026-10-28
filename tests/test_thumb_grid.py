@@ -1,7 +1,7 @@
 import pytest
 
-from impostor.dataset import Label, scan_dataset
-from impostor.ui.thumb_grid import ThumbGrid
+from incubator.dataset import Label, scan_dataset
+from incubator.ui.thumb_grid import ThumbGrid
 
 PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
 
@@ -103,7 +103,7 @@ def test_preview_outline_follows_alignment(qtbot, tmp_path):
 
 
 def test_list_sets_usage_for_selection(qtbot, grid):
-    from impostor.dataset import Pin
+    from incubator.dataset import Pin
     g, ds = grid
     select(g, [0, 1])
     g.buttons[Label.NORMAL].click()
@@ -126,7 +126,7 @@ def test_list_usage_hidden_for_interference(qtbot, grid):
 
 
 def test_list_usage_shows_auto_by_default_and_reflects_choice(qtbot, grid):
-    from impostor.dataset import Pin
+    from incubator.dataset import Pin
     g, ds = grid
     select(g, [0])
     g.buttons[Label.NORMAL].click()

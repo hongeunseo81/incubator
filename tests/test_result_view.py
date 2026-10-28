@@ -2,9 +2,9 @@ import time
 
 import pytest
 
-from impostor.algorithms.base import AlgoResult, eval_items
-from impostor.dataset import Label
-from impostor.ui import result_view as rv
+from incubator.algorithms.base import AlgoResult, eval_items
+from incubator.dataset import Label
+from incubator.ui import result_view as rv
 from tests.conftest import make_synthetic
 
 

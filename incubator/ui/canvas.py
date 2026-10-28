@@ -5,8 +5,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
-from impostor.ui import theme
-from impostor.ui.boxes import normalize_box
+from incubator.ui import theme
+from incubator.ui.boxes import normalize_box
 
 GT_COLOR = QColor(theme.OK)
 PRED_COLOR = QColor(theme.WARN)

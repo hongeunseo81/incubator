@@ -1,5 +1,5 @@
-from impostor.dataset import Label
-from impostor.readiness import readiness, snapshot
+from incubator.dataset import Label
+from incubator.readiness import readiness, snapshot
 from tests.conftest import make_synthetic
 
 

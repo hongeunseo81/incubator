@@ -1,4 +1,4 @@
-from impostor.metrics import auto_threshold, evaluate, location_hit
+from incubator.metrics import auto_threshold, evaluate, location_hit
 
 
 def test_auto_threshold_just_above_max():

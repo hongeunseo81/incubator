@@ -25,7 +25,7 @@ def make_mask(w: int, h: int) -> np.ndarray:
 
 def make_synthetic(tmp_path: Path, n_normal=15, n_boxed=2, n_boxless=0, size=224):
     """격자 무늬+잡음 정상, 마스크 안에 흰 사각형(40px)이 있는 간섭. Dataset 반환."""
-    from impostor.dataset import Dataset, Item, Label
+    from incubator.dataset import Dataset, Item, Label
 
     rng = np.random.default_rng(0)
     base = np.full((size, size), 110, np.uint8)
@@ -77,7 +77,7 @@ def tmp_images(tmp_path) -> TmpImages:
 def make_shifted(tmp_path: Path, n_normal=12, n_interf=2, size=224, seed=1):
     """마스터 이미지·마스크가 Master 폴더에 있고, 각 차량 이미지가 마스터에서 ±15px 밀린 데이터셋.
     반환: (Dataset, {경로: (dx, dy)})"""
-    from impostor.dataset import Dataset, Item, Label
+    from incubator.dataset import Dataset, Item, Label
 
     rng = np.random.default_rng(seed)
     small = rng.integers(40, 200, (size // 8, size // 8), np.uint8)
@@ -108,5 +108,5 @@ def make_shifted(tmp_path: Path, n_normal=12, n_interf=2, size=224, seed=1):
 
 @pytest.fixture
 def small_ds(tmp_images):
-    from impostor.dataset import scan_dataset
+    from incubator.dataset import scan_dataset
     return scan_dataset("t", tmp_images.root, "*/cam_03_IMG_Texture_8Bit.png", tmp_images.mask)

@@ -8,12 +8,12 @@ from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                                QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
-from impostor.align import Aligner, describe, shift_mask
-from impostor.dataset import Dataset, Item, Label, Pin
-from impostor.imageio import imread, load_mask
-from impostor.ui import theme
-from impostor.ui.canvas import ImageCanvas
-from impostor.ui.labels import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, LIST_W, PIN_HELP, PIN_TEXT
+from incubator.align import Aligner, describe, shift_mask
+from incubator.dataset import Dataset, Item, Label, Pin
+from incubator.imageio import imread, load_mask
+from incubator.ui import theme
+from incubator.ui.canvas import ImageCanvas
+from incubator.ui.labels import KEY_LABEL, LABEL_COLOR, LABEL_TEXT, LIST_W, PIN_HELP, PIN_TEXT
 
 FILTERS = ["전체", "정상", "간섭", "미분류"]
 

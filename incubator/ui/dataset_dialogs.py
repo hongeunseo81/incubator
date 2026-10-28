@@ -5,10 +5,10 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog
                                QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QVBoxLayout,
                                QWidget)
 
-from impostor import dataset as dataset_mod
-from impostor.dataset import Dataset, Label, find_image_kinds, find_mask_for, import_folders, scan_dataset
-from impostor.ui import theme
-from impostor.ui.labels import LABEL_TEXT
+from incubator import dataset as dataset_mod
+from incubator.dataset import Dataset, Label, find_image_kinds, find_mask_for, import_folders, scan_dataset
+from incubator.ui import theme
+from incubator.ui.labels import LABEL_TEXT
 
 EXCLUDE = ["master"]   # Master 폴더의 마스터 이미지가 차량 데이터에 섞이지 않게 항상 뺀다
 

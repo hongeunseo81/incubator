@@ -2,8 +2,8 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from impostor.dataset import Label, Pin
-from impostor.ui import theme
+from incubator.dataset import Label, Pin
+from incubator.ui import theme
 
 LABEL_TEXT = {Label.NORMAL: "정상", Label.INTERFERENCE: "간섭", Label.UNLABELED: "미분류"}
 LABEL_COLOR = {Label.NORMAL: QColor(theme.OK), Label.INTERFERENCE: QColor(theme.ALERT),

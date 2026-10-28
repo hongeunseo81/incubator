@@ -12,12 +12,12 @@ import torch
 import torch.nn.functional as F
 import torchvision
 
-from impostor.algorithms.params import defaults
-from impostor.align import Aligner, shift_box, shift_mask
-from impostor.algorithms.base import AlgoResult, Progress, ShouldStop, check_stop, eval_items
-from impostor.dataset import Dataset
-from impostor.imageio import imread, load_mask
-from impostor.split import Split
+from incubator.algorithms.params import defaults
+from incubator.align import Aligner, shift_box, shift_mask
+from incubator.algorithms.base import AlgoResult, Progress, ShouldStop, check_stop, eval_items
+from incubator.dataset import Dataset
+from incubator.imageio import imread, load_mask
+from incubator.split import Split
 
 BANK_PER_IMAGE = 2000       # 영상당 랜덤 추출 패치 수 (coreset 전)
 BOX_PAD = 20

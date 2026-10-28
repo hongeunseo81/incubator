@@ -1,7 +1,7 @@
 """제목이 붙은 테두리 카드 — 화면을 구역으로 나눌 때 쓴다."""
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
-from impostor.ui import theme
+from incubator.ui import theme
 
 
 def section(title: str) -> tuple[QFrame, QVBoxLayout]:

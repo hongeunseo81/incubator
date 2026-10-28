@@ -1,7 +1,7 @@
 import pytest
 
-from impostor.dataset import Dataset, Item, Label, Pin
-from impostor.split import SplitError, split_normals
+from incubator.dataset import Dataset, Item, Label, Pin
+from incubator.split import SplitError, split_normals
 
 
 def make_ds(tmp_path, n_groups, per_group=2):

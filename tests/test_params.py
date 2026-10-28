@@ -1,6 +1,6 @@
-from impostor.algorithms import PARAMS, defaults
-from impostor.algorithms.patchcore import PatchCore
-from impostor.algorithms.yolo import Yolo
+from incubator.algorithms import PARAMS, defaults
+from incubator.algorithms.patchcore import PatchCore
+from incubator.algorithms.yolo import Yolo
 
 
 def test_defaults_match_v1():

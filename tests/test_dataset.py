@@ -4,9 +4,9 @@ from pathlib import Path
 
 import numpy as np
 
-from impostor.dataset import (Item, Label, Pin, import_folders, load_dataset, save_dataset,
+from incubator.dataset import (Item, Label, Pin, import_folders, load_dataset, save_dataset,
                               scan_dataset)
-from impostor.imageio import imread, load_mask
+from incubator.imageio import imread, load_mask
 from tests.conftest import write_png
 
 PATTERN = "*/cam_03_IMG_Texture_8Bit.png"
@@ -77,7 +77,7 @@ def test_size_mismatch_reported(tmp_images):
 
 
 # ---- 원본 폴더에서 바로 ----
-from impostor.dataset import find_image_kinds
+from incubator.dataset import find_image_kinds
 
 
 def test_find_image_kinds_counts_recursive(tmp_path):
@@ -125,7 +125,7 @@ def test_kinds_sorted_by_count(tmp_path):
 
 
 def test_mask_prefers_shallow_master(tmp_path):
-    from impostor.dataset import find_mask_for
+    from incubator.dataset import find_mask_for
     img = np.zeros((4, 4, 3), np.uint8)
     write_png(tmp_path / "3dvs_Master" / "a" / "b" / "fastenLHCam_02_IMG_Kungfu.png", img)
     m = write_png(tmp_path / "Master" / "JG" / "fastenLHCam_02_IMG_Kungfu.png", img)
@@ -134,7 +134,7 @@ def test_mask_prefers_shallow_master(tmp_path):
 
 
 def test_imsize_reads_png_header_only(tmp_path, monkeypatch):
-    import impostor.imageio as io
+    import incubator.imageio as io
     p = write_png(tmp_path / "한글 폴더" / "a.png", np.zeros((48, 64, 3), np.uint8))
     monkeypatch.setattr(io, "imread", lambda path: (_ for _ in ()).throw(AssertionError("decoded")))
     assert io.imsize(p) == (48, 64)

@@ -1,9 +1,9 @@
 import pytest
 from PySide6.QtWidgets import QMessageBox
 
-from impostor.dataset import Label
-from impostor.ui import result_view as rv
-from impostor.ui.wizard import Wizard
+from incubator.dataset import Label
+from incubator.ui import result_view as rv
+from incubator.ui.wizard import Wizard
 from tests.conftest import make_synthetic
 from tests.test_result_view import FakeAlgo, SlowFake
 
@@ -124,7 +124,7 @@ def test_results_kept_when_just_browsing_back(qtbot, wizard, tmp_path, monkeypat
 
 
 def test_main_window_uses_wizard(qtbot, monkeypatch):
-    from impostor.ui.app import MainWindow
+    from incubator.ui.app import MainWindow
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Discard)
     w = MainWindow()
     qtbot.addWidget(w)
@@ -189,8 +189,8 @@ def test_reason_shown_next_to_tabs(wizard):
 def test_entering_data_step_opens_latest_saved_dataset(qtbot, tmp_path, monkeypatch):
     import os
     import time
-    from impostor import dataset as dataset_mod
-    from impostor.dataset import save_dataset
+    from incubator import dataset as dataset_mod
+    from incubator.dataset import save_dataset
     monkeypatch.setattr(dataset_mod, "DATASET_DIR", tmp_path / "saved")
     old = make_synthetic(tmp_path / "a", n_normal=10, n_boxed=2)
     old.name = "old"
@@ -223,7 +223,7 @@ def test_param_help_shown(wizard, tmp_path):
 
 
 def test_no_redundant_texts(wizard):
-    from impostor.ui.wizard import DataStep
+    from incubator.ui.wizard import DataStep
     d = wizard.data
     assert not hasattr(d, "status") and not hasattr(d, "hint")
 

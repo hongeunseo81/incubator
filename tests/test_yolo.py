@@ -4,10 +4,10 @@ import tempfile
 
 import pytest
 
-from impostor.algorithms import REGISTRY
-from impostor.algorithms.base import eval_items
-from impostor.algorithms.yolo import FAST, TMP_PREFIX, Yolo
-from impostor.split import split_normals
+from incubator.algorithms import REGISTRY
+from incubator.algorithms.base import eval_items
+from incubator.algorithms.yolo import FAST, TMP_PREFIX, Yolo
+from incubator.split import split_normals
 from tests.conftest import make_synthetic
 
 

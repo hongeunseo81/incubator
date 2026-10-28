@@ -5,8 +5,8 @@ from typing import Protocol
 
 import numpy as np
 
-from impostor.dataset import Dataset, Item, Label
-from impostor.split import Split
+from incubator.dataset import Dataset, Item, Label
+from incubator.split import Split
 
 Progress = Callable[[str, float], None]   # (단계 문구, 0~1)
 ShouldStop = Callable[[], bool]

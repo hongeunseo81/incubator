@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from impostor.imageio import imsize, load_mask
+from incubator.imageio import imsize, load_mask
 
-DATASET_DIR = Path.home() / ".impostor" / "datasets"
+DATASET_DIR = Path.home() / ".incubator" / "datasets"
 
 Box = tuple[int, int, int, int]  # x0, y0, x1, y1 (원본 픽셀)
 

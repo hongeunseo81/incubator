@@ -6,8 +6,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from impostor.dataset import Dataset
-from impostor.imageio import imread, load_mask
+from incubator.dataset import Dataset
+from incubator.imageio import imread, load_mask
 
 PAD = 40               # 위치 측정에 쓰는 영역 = 마스크 bbox + PAD
 LOW_CONFIDENCE = 0.05  # phaseCorrelate 응답이 이보다 낮으면 측정을 믿기 어렵다 (이물이 크게 가린 경우 등)

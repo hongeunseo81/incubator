@@ -15,15 +15,15 @@ import cv2
 import numpy as np
 import torch
 
-from impostor.algorithms.params import defaults
-from impostor.align import Aligner, shift_mask
-from impostor.algorithms.base import AlgoResult, Cancelled, Progress, ShouldStop, check_stop, eval_items
-from impostor.dataset import DATASET_DIR, Dataset, Item
-from impostor.imageio import imread, imsize, load_mask
-from impostor.split import Split
+from incubator.algorithms.params import defaults
+from incubator.align import Aligner, shift_mask
+from incubator.algorithms.base import AlgoResult, Cancelled, Progress, ShouldStop, check_stop, eval_items
+from incubator.dataset import DATASET_DIR, Dataset, Item
+from incubator.imageio import imread, imsize, load_mask
+from incubator.split import Split
 
 FAST = defaults("YOLO") | {"batch": 8}   # 빠른 모드 — 화면에 없는 batch 만 여기서 정한다
-TMP_PREFIX = "impostor_yolo_"
+TMP_PREFIX = "incubator_yolo_"
 WEIGHTS_DIR = DATASET_DIR.parent / "weights"
 SEED = 0
 

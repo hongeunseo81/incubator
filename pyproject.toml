@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "impostor"
+name = "incubator"
 version = "0.1.0"
-description = "이물 간섭 검출 알고리즘 비교 툴"
+description = "이물 검출 모델을 실험·학습·검증해 메인 앱으로 내보내는 툴"
 requires-python = ">=3.11"
 # torch / torchvision 은 CUDA 빌드를 직접 설치한다 (README 참고)
 dependencies = [
@@ -20,7 +20,7 @@ dependencies = [
 dev = ["pytest", "pytest-qt"]
 
 [tool.setuptools.packages.find]
-include = ["impostor*"]
+include = ["incubator*"]
 
 [tool.pytest.ini_options]
 markers = ["slow: GPU/모델 다운로드 필요"]

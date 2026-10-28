@@ -2,7 +2,7 @@
 
 이물 검출 모델을 **실험하고, 데이터를 먹여 학습시키고, 메인 앱(CleVisionSystems)에 넣기 전에 검증하는** 툴.
 스타트업 인큐베이터처럼 모델을 키워서 현장으로 졸업시킨다. 지원 알고리즘: PatchCore(이상탐지), YOLO(검출).
-설계: `docs/superpowers/specs/2026-10-28-impostor-design.md` (처음 이름은 Impostor — 패키지·폴더 이름은 그대로 `impostor`)
+설계: `docs/superpowers/specs/2026-10-28-incubator-design.md` (이전 이름: Impostor)
 
 ## 설치
 ```
@@ -13,10 +13,10 @@ py -3.11 -m venv .venv
 
 ## 실행
 ```
-.venv\Scripts\python -m impostor
+.venv\Scripts\python -m incubator
 ```
-- 첫 실행 때 PatchCore 백본(wide_resnet50)과 YOLO 사전학습 가중치(`~/.impostor/weights`)를 내려받는다 — **인터넷 필요**.
-- 데이터셋(경로·라벨·박스)은 `~/.impostor/datasets/<이름>.json`에 저장된다. 이미지는 복사하지 않는다.
+- 첫 실행 때 PatchCore 백본(wide_resnet50)과 YOLO 사전학습 가중치(`~/.incubator/weights`)를 내려받는다 — **인터넷 필요**.
+- 데이터셋(경로·라벨·박스)은 `~/.incubator/datasets/<이름>.json`에 저장된다. 이미지는 복사하지 않는다.
 
 ## 데이터셋 만들기
 - **새로 만들기 (폴더 스캔)**: 루트 폴더 + 파일 패턴(예: `*/cam_03_IMG_Texture_8Bit.png`) + 마스크. 그룹 = 회차 폴더. 처음엔 전부 미분류.

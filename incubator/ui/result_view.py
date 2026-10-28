@@ -7,19 +7,19 @@ from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QSlider, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from impostor.algorithms import REGISTRY
-from impostor.algorithms.base import AlgoResult, eval_items
-from impostor.align import describe, shift_mask
-from impostor.dataset import Dataset, Item, Label
-from impostor.imageio import imread, load_mask
-from impostor.metrics import auto_threshold, evaluate
-from impostor.readiness import Snapshot, snapshot
-from impostor.split import SplitError
-from impostor.ui.canvas import ImageCanvas
-from impostor.ui import theme
-from impostor.ui.labels import LABEL_TEXT
-from impostor.ui.sections import section
-from impostor.ui.worker import RunWorker
+from incubator.algorithms import REGISTRY
+from incubator.algorithms.base import AlgoResult, eval_items
+from incubator.align import describe, shift_mask
+from incubator.dataset import Dataset, Item, Label
+from incubator.imageio import imread, load_mask
+from incubator.metrics import auto_threshold, evaluate
+from incubator.readiness import Snapshot, snapshot
+from incubator.split import SplitError
+from incubator.ui.canvas import ImageCanvas
+from incubator.ui import theme
+from incubator.ui.labels import LABEL_TEXT
+from incubator.ui.sections import section
+from incubator.ui.worker import RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
 STEPS = 1000

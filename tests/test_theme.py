@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QApplication
 
-from impostor.ui import theme
-from impostor.ui.canvas import ImageCanvas
+from incubator.ui import theme
+from incubator.ui.canvas import ImageCanvas
 
 
 def test_apply_sets_dark_stylesheet(qapp):

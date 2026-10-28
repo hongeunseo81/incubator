@@ -5,15 +5,15 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
-from impostor import dataset as dataset_mod
-from impostor.algorithms import PARAMS, REGISTRY
-from impostor.dataset import Dataset, Label
-from impostor.align import reference_for
-from impostor.readiness import readiness
-from impostor.ui import theme
-from impostor.ui.result_view import ResultView
-from impostor.ui.sections import section
-from impostor.ui.thumb_grid import ThumbGrid
+from incubator import dataset as dataset_mod
+from incubator.algorithms import PARAMS, REGISTRY
+from incubator.dataset import Dataset, Label
+from incubator.align import reference_for
+from incubator.readiness import readiness
+from incubator.ui import theme
+from incubator.ui.result_view import ResultView
+from incubator.ui.sections import section
+from incubator.ui.thumb_grid import ThumbGrid
 
 STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 실행·결과"]
 RUN = 2   # 마지막 단계: 왼쪽 파라미터 + 오른쪽 실행·결과
