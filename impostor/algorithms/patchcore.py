@@ -12,15 +12,13 @@ import torch
 import torch.nn.functional as F
 import torchvision
 
+from impostor.algorithms.params import defaults
 from impostor.algorithms.base import AlgoResult, Progress, ShouldStop, check_stop, eval_items
 from impostor.dataset import Dataset
 from impostor.imageio import imread, load_mask
 from impostor.split import Split
 
-WIDTH = 640                 # 마스크 bbox 를 이 폭으로 리사이즈
 BANK_PER_IMAGE = 2000       # 영상당 랜덤 추출 패치 수 (coreset 전)
-CORESET = 20000             # 최종 메모리 크기
-MASK_ERODE = 5              # 마스크 경계 오정렬 완화 (원본 px)
 BOX_PAD = 20
 BLUR_SIGMA = 4
 SEED = 0
@@ -45,25 +43,27 @@ class Extractor(torch.nn.Module):
         return torch.cat([f2, f3], 1)  # B x 1536 x h x w (stride 8)
 
 
-def mask_geometry(mask: np.ndarray):
+def mask_geometry(mask: np.ndarray, erode: int):
     ys, xs = np.where(mask)
     box = (max(ys.min() - BOX_PAD, 0), min(ys.max() + BOX_PAD, mask.shape[0]),
            max(xs.min() - BOX_PAD, 0), min(xs.max() + BOX_PAD, mask.shape[1]))
-    eroded = cv2.erode(mask.astype(np.uint8), np.ones((2 * MASK_ERODE + 1,) * 2, np.uint8)) > 0
+    eroded = cv2.erode(mask.astype(np.uint8), np.ones((2 * erode + 1,) * 2, np.uint8)) > 0
     return box, eroded
 
 
 class PatchCore:
     name = "PatchCore"
 
-    def __init__(self):
+    def __init__(self, params: dict | None = None):
+        # width: 마스크 bbox 를 이 폭으로 리사이즈 / coreset: 최종 메모리 크기 / erode: 마스크 경계 오정렬 완화(px)
+        self.params = defaults(self.name) | (params or {})
         self.dev = "cuda" if torch.cuda.is_available() else "cpu"
 
     def _prep(self, img, box):
         y0, y1, x0, x1 = box
         crop = img[y0:y1, x0:x1]
-        h = max(8, int(round(crop.shape[0] * WIDTH / crop.shape[1] / 8)) * 8)
-        rs = cv2.resize(crop, (WIDTH, h), interpolation=cv2.INTER_AREA)
+        h = max(8, int(round(crop.shape[0] * self.params["width"] / crop.shape[1] / 8)) * 8)
+        rs = cv2.resize(crop, (self.params["width"], h), interpolation=cv2.INTER_AREA)
         t = torch.from_numpy(cv2.cvtColor(rs, cv2.COLOR_BGR2RGB)).permute(2, 0, 1).float().unsqueeze(0) / 255
         return ((t - MEAN) / STD).to(self.dev)
 
@@ -107,7 +107,7 @@ class PatchCore:
         torch.manual_seed(SEED)
         check_stop(should_stop)
         mask = load_mask(ds.mask_path)
-        box, eroded = mask_geometry(mask)
+        box, eroded = mask_geometry(mask, self.params["erode"])
         progress("PatchCore 모델 준비", 0.0)
         model = Extractor().to(self.dev).eval()
 
@@ -119,7 +119,7 @@ class PatchCore:
             f = f.permute(1, 2, 0).reshape(-1, f.shape[0])
             feats.append(f[torch.randperm(len(f), device=self.dev)[:BANK_PER_IMAGE]])
         progress("PatchCore 메모리 축약", 0.5)
-        bank = self._coreset(torch.cat(feats), CORESET)
+        bank = self._coreset(torch.cat(feats), self.params["coreset"])
         del feats
 
         interf, thresh, test = eval_items(ds, split)

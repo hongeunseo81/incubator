@@ -17,7 +17,7 @@ import torch
 
 from impostor.algorithms.base import AlgoResult, Cancelled, Progress, ShouldStop, check_stop, eval_items
 from impostor.dataset import DATASET_DIR, Dataset, Item
-from impostor.imageio import imread, load_mask
+from impostor.imageio import imread, imsize, load_mask
 from impostor.split import Split
 
 FAST = dict(model="yolov8n.pt", epochs=30, imgsz=640, batch=8, k=3)
@@ -42,8 +42,8 @@ def _label_lines(item: Item, w: int, h: int) -> str:
 class Yolo:
     name = "YOLO"
 
-    def __init__(self, params: dict = FAST):
-        self.params = params
+    def __init__(self, params: dict | None = None):
+        self.params = FAST | (params or {})
         self.device = 0 if torch.cuda.is_available() else "cpu"
 
     def _write_trainset(self, root: Path, items: list[Item]) -> Path:
@@ -94,6 +94,9 @@ class Yolo:
             return AlgoResult(self.name, skipped="박스 있는 간섭이 2장 미만이라 YOLO를 실행하지 않았습니다")
 
         mask = load_mask(ds.mask_path)
+        for it in interf + thresh + test + split.train:   # 학습 전에 확인해야 빨리 실패한다
+            if imsize(it.path) != mask.shape:
+                raise ValueError(f"마스크와 크기가 다른 이미지입니다: {it.path}")
         k = min(self.params["k"], len(boxed))
         order = sorted(boxed, key=lambda i: i.path)
         random.Random(SEED).shuffle(order)
