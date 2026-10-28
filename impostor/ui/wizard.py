@@ -87,7 +87,7 @@ class DataStep(QWidget):
         self.grid.changed.connect(self._edited)
         self.grid.open_item.connect(self.open_single)
         self.views = QTabWidget()
-        self.views.addTab(self.grid, "썸네일 (여러 장 한 번에)")
+        self.views.addTab(self.grid, "목록 (여러 개 한 번에)")
         self.views.addTab(self.label_tab, "한 장씩 (박스 그리기)")
         self.views.currentChanged.connect(self._view_switched)
         self.status = QLabel()

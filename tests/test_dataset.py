@@ -131,3 +131,10 @@ def test_mask_prefers_shallow_master(tmp_path):
     m = write_png(tmp_path / "Master" / "JG" / "fastenLHCam_02_IMG_Kungfu.png", img)
     write_png(tmp_path / "car1" / "fastenLHCam_02_IMG_Kungfu.png", img)
     assert find_mask_for(str(tmp_path), "fastenLHCam_02_IMG_Texture_8Bit.png") == m
+
+
+def test_imsize_reads_png_header_only(tmp_path, monkeypatch):
+    import impostor.imageio as io
+    p = write_png(tmp_path / "한글 폴더" / "a.png", np.zeros((48, 64, 3), np.uint8))
+    monkeypatch.setattr(io, "imread", lambda path: (_ for _ in ()).throw(AssertionError("decoded")))
+    assert io.imsize(p) == (48, 64)

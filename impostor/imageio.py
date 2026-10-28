@@ -20,8 +20,18 @@ def imread(path: str) -> np.ndarray:
     return img
 
 
+PNG_SIGNATURE = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])   # PNG 파일 시그니처
+
+
 def imsize(path: str) -> tuple[int, int]:
-    """(h, w)"""
+    """(h, w). PNG는 헤더(IHDR)만 읽는다 — 수백 장 크기 검사를 전체 디코딩 없이."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(24)
+    except OSError as e:
+        raise ImageReadError(path) from e
+    if head[:8] == PNG_SIGNATURE and head[12:16] == b"IHDR":
+        return int.from_bytes(head[20:24], "big"), int.from_bytes(head[16:20], "big")
     return imread(path).shape[:2]
 
 

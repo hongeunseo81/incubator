@@ -12,7 +12,6 @@ def grid(qtbot, tmp_images):
     qtbot.addWidget(g)
     ds = scan_dataset("t", tmp_images.root, PATTERN, tmp_images.mask)
     g.set_dataset(ds)
-    qtbot.waitUntil(lambda: g.loaded == len(ds.items), timeout=5000)
     return g, ds
 
 
@@ -22,9 +21,17 @@ def select(g, rows):
         g.view.item(r).setSelected(True)
 
 
-def test_shows_every_image(grid):
+def test_lists_folder_names_without_decoding(grid):
     g, ds = grid
-    assert g.view.count() == len(ds.items) and not g.view.item(0).icon().isNull()
+    assert g.view.count() == len(ds.items)
+    assert "1_7C  0001" in g.view.item(0).text()
+    assert g.view.item(0).icon().isNull()           # 목록에는 그림을 만들지 않는다
+
+
+def test_preview_shows_current_only(qtbot, grid):
+    g, ds = grid
+    g.view.setCurrentRow(1)
+    assert g.preview_path == ds.items[1].path and not g.preview.pixmap().isNull()
 
 
 def test_bulk_label_selection(qtbot, grid):
