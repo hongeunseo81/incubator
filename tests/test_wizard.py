@@ -19,36 +19,48 @@ def choose(w, algo):
     w.algo.buttons[algo].click()
 
 
-def test_next_blocked_until_algo_selected(wizard):
-    assert wizard.step == 0 and not wizard.next_btn.isEnabled()
+def tab(w, i):
+    w.tabs[i].click()
+
+
+def test_no_prev_next_buttons(wizard):
+    assert not hasattr(wizard, "next_btn") and not hasattr(wizard, "prev_btn")
+
+
+def test_tabs_locked_until_algo_selected(wizard):
+    assert wizard.step == 0 and not wizard.tabs[1].isEnabled() and not wizard.tabs[2].isEnabled()
     choose(wizard, "PatchCore")
-    assert wizard.next_btn.isEnabled()
+    assert wizard.step == 1                       # 카드를 누르면 바로 데이터 준비로
+    assert wizard.tabs[0].isEnabled() and wizard.tabs[1].isEnabled() and not wizard.tabs[2].isEnabled()
 
 
-def test_next_blocked_without_boxes(wizard, tmp_path):
+def test_algo_cards_are_large(wizard):
+    card = wizard.algo.buttons["PatchCore"]
+    assert card.minimumWidth() >= 360 and card.minimumHeight() >= 240
+
+
+def test_result_tab_blocked_without_boxes(wizard, tmp_path):
     choose(wizard, "YOLO")
-    wizard.next_btn.click()
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=0, n_boxless=2))
-    assert wizard.step == 1 and not wizard.next_btn.isEnabled()
-    assert "2장 이상" in wizard.data.status.text()
+    tab(wizard, 2)
+    assert wizard.step == 1 and not wizard.tabs[2].isEnabled()
+    assert "2장 이상" in wizard.data.status.text() and "2장 이상" in wizard.reason.text()
 
 
-def test_next_blocked_without_dataset(wizard):
+def test_result_tab_blocked_without_dataset(wizard):
     choose(wizard, "PatchCore")
-    wizard.next_btn.click()
-    assert not wizard.next_btn.isEnabled() and "데이터셋을 고르세요" in wizard.data.status.text()
+    assert not wizard.tabs[2].isEnabled() and "데이터셋을 고르세요" in wizard.data.status.text()
 
 
 def test_patchcore_flow_reaches_result(wizard, tmp_path):
     choose(wizard, "PatchCore")
-    wizard.next_btn.click()
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
-    wizard.next_btn.click()
+    tab(wizard, 2)
     assert wizard.step == 2 and wizard.result.algo == "PatchCore"
-    assert len(wizard.step_labels) == 3 and not wizard.next_btn.isEnabled()
+    assert len(wizard.tabs) == 3
     assert wizard.result.params == {"width": 640, "coreset": 20000, "erode": 5}
     assert wizard.result.table.rowCount() == 0
-    assert "PatchCore" in wizard.step_labels[0].text()
+    assert "PatchCore" in wizard.tabs[0].text()
 
 
 def test_param_form_follows_algo(wizard, tmp_path):
@@ -64,9 +76,8 @@ def test_param_form_follows_algo(wizard, tmp_path):
 
 def test_param_change_reaches_result(wizard, tmp_path):
     choose(wizard, "PatchCore")
-    wizard.next_btn.click()
     wizard.set_dataset(make_synthetic(tmp_path, n_normal=10, n_boxed=2))
-    wizard.next_btn.click()
+    tab(wizard, 2)
     wizard.params.widgets["coreset"].setValue(5000)
     assert wizard.result.params["coreset"] == 5000
     wizard.params.reset_btn.click()
@@ -77,19 +88,18 @@ def to_result(qtbot, wizard, tmp_path, monkeypatch, cls):
     monkeypatch.setattr(rv, "REGISTRY", {"PatchCore": cls})
     FakeAlgo.calls = 0
     choose(wizard, "PatchCore")
-    wizard.next_btn.click()
     ds = make_synthetic(tmp_path, n_normal=10, n_boxed=2)
     wizard.set_dataset(ds)
-    wizard.next_btn.click()
+    tab(wizard, 2)
     return ds
 
 
 def test_navigation_locked_while_running(qtbot, wizard, tmp_path, monkeypatch):
     to_result(qtbot, wizard, tmp_path, monkeypatch, SlowFake)
     wizard.result.run_btn.click()
-    assert not wizard.prev_btn.isEnabled() and not wizard.params.isEnabled()
+    assert not wizard.tabs[0].isEnabled() and not wizard.tabs[1].isEnabled() and not wizard.params.isEnabled()
     qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
-    assert wizard.prev_btn.isEnabled() and wizard.params.isEnabled()
+    assert wizard.tabs[1].isEnabled() and wizard.params.isEnabled()
 
 
 def test_results_cleared_after_edit(qtbot, wizard, tmp_path, monkeypatch):
@@ -97,10 +107,10 @@ def test_results_cleared_after_edit(qtbot, wizard, tmp_path, monkeypatch):
     wizard.result.run_btn.click()
     qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
     assert wizard.result.table.rowCount() == 1
-    wizard.prev_btn.click()
+    tab(wizard, 1)
     wizard.data.grid.view.setCurrentRow(0)
     wizard.data.grid.label_current(Label.UNLABELED)
-    wizard.go(2)
+    tab(wizard, 2)
     assert wizard.result.table.rowCount() == 0
 
 
@@ -108,8 +118,8 @@ def test_results_kept_when_just_browsing_back(qtbot, wizard, tmp_path, monkeypat
     to_result(qtbot, wizard, tmp_path, monkeypatch, FakeAlgo)
     wizard.result.run_btn.click()
     qtbot.waitUntil(lambda: not wizard.result.running, timeout=10000)
-    wizard.prev_btn.click()
-    wizard.next_btn.click()
+    tab(wizard, 1)
+    tab(wizard, 2)
     assert wizard.result.table.rowCount() == 1
 
 
@@ -171,9 +181,8 @@ def test_size_mismatch_cleared_by_unlabeling(wizard, tmp_path):
     assert "크기가 다른" not in wizard.data.status.text()
 
 
-def test_reason_shown_next_to_next_button(wizard):
+def test_reason_shown_next_to_tabs(wizard):
     choose(wizard, "PatchCore")
-    wizard.next_btn.click()
     assert "데이터셋을 고르세요" in wizard.reason.text()
 
 
@@ -195,7 +204,6 @@ def test_entering_data_step_opens_latest_saved_dataset(qtbot, tmp_path, monkeypa
     opened = []
     w.data.open_requested.connect(opened.append)
     choose(w, "PatchCore")
-    w.next_btn.click()
     assert opened == [str(tmp_path / "saved" / "new.json")]
 
 

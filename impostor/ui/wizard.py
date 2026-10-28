@@ -20,6 +20,7 @@ DESCRIPTIONS = {
     "PatchCore": "이상탐지 — 정상 이미지만으로 학습합니다. 처음 보는 이물도 잡습니다.\n필요: 정상/간섭 라벨 (박스는 선택, 그리면 위치 적중 계산)",
     "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
 }
+CARD_W, CARD_H = 440, 280   # 알고리즘 카드 크기
 VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
 OK_STYLE = f"color: {theme.OK}"
 BAD_STYLE = f"color: {theme.ALERT}"
@@ -34,26 +35,52 @@ def _row_title(text: str) -> QLabel:
 
 class AlgoStep(QWidget):
     changed = Signal()
+    picked = Signal()       # 카드를 눌렀다 (같은 카드여도) → 마법사가 다음 단계로 보낸다
 
     def __init__(self):
         super().__init__()
         self.selected: str | None = None
         self.buttons: dict[str, QPushButton] = {}
-        v = QVBoxLayout(self)
-        v.addWidget(QLabel("<h3>어떤 알고리즘을 시험할까요?</h3>"))
+        title = QLabel("어떤 알고리즘으로 찾을까요?")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet(f"color: {theme.ACCENT}; font-size: 26px; font-weight: bold; font-family: {theme.MONO}")
         row = QHBoxLayout()
+        row.setSpacing(32)
+        row.addStretch()
         for name in REGISTRY:
-            b = QPushButton(f"{name}\n\n{DESCRIPTIONS.get(name, '')}")
+            b = QPushButton()
             b.setCheckable(True)
-            b.setMinimumSize(320, 160)
-            b.setStyleSheet("QPushButton { text-align: left; padding: 12px; } "
-                            f"QPushButton:checked {{ border: 2px solid {theme.ACCENT}; color: {theme.ACCENT}; }}")
-            b.clicked.connect(lambda _=False, n=name: self.select(n))
+            b.setFixedSize(CARD_W, CARD_H)
+            b.setStyleSheet(f"QPushButton {{ border-radius: 12px; }} "
+                            f"QPushButton:hover {{ border: 2px solid {theme.ACCENT}; }} "
+                            f"QPushButton:checked {{ border: 2px solid {theme.ACCENT}; background: #12343f; }}")
+            inner = QVBoxLayout(b)
+            inner.setContentsMargins(28, 28, 28, 28)
+            head = QLabel(name)
+            head.setStyleSheet(f"font-size: 28px; font-weight: bold; color: {theme.TEXT}; font-family: {theme.MONO}")
+            desc = QLabel(DESCRIPTIONS.get(name, ""))
+            desc.setWordWrap(True)
+            desc.setStyleSheet(f"font-size: 14px; color: {theme.MUTED}")
+            for lab in (head, desc):
+                lab.setAttribute(Qt.WA_TransparentForMouseEvents)   # 글자 위를 눌러도 카드가 눌리게
+            inner.addWidget(head)
+            inner.addSpacing(12)
+            inner.addWidget(desc)
+            inner.addStretch()
+            b.clicked.connect(lambda _=False, n=name: self._clicked(n))
             row.addWidget(b)
             self.buttons[name] = b
         row.addStretch()
+        v = QVBoxLayout(self)
+        v.addStretch(2)
+        v.addWidget(title)
+        v.addSpacing(32)
         v.addLayout(row)
-        v.addStretch()
+        v.addStretch(3)
+
+    def _clicked(self, name: str) -> None:
+        self.select(name)
+        self.picked.emit()
 
     def select(self, name: str) -> None:
         for n, b in self.buttons.items():
@@ -322,28 +349,26 @@ class Wizard(QWidget):
         for w in (self.algo, self.data, run_page):
             self.stack.addWidget(w)
 
-        self.step_labels = [QLabel(t) for t in STEP_TITLES]
+        # 위쪽 단계 탭을 눌러 이동한다 (갈 수 없는 단계는 막히고, 이유는 옆에 표시)
+        self.tabs: list[QPushButton] = []
         bar = QHBoxLayout()
-        for lab in self.step_labels:
-            bar.addWidget(lab)
-        bar.addStretch()
-        self.prev_btn = QPushButton("◀ 이전")
-        self.next_btn = QPushButton("다음 ▶")
-        self.prev_btn.clicked.connect(lambda: self.go(self.step - 1))
-        self.next_btn.clicked.connect(lambda: self.go(self.step + 1))
-        self.reason = QLabel()          # "다음"이 막힌 이유를 버튼 옆에 항상 보여준다
+        for k, t in enumerate(STEP_TITLES):
+            b = QPushButton(t)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, i=k: self.go(i))
+            bar.addWidget(b)
+            self.tabs.append(b)
+        self.reason = QLabel()
         self.reason.setStyleSheet(BAD_STYLE)
-        nav = QHBoxLayout()
-        nav.addStretch()
-        nav.addWidget(self.reason)
-        nav.addWidget(self.prev_btn)
-        nav.addWidget(self.next_btn)
+        bar.addSpacing(12)
+        bar.addWidget(self.reason)
+        bar.addStretch()
         v = QVBoxLayout(self)
         v.addLayout(bar)
         v.addWidget(self.stack, 1)
-        v.addLayout(nav)
 
         self.algo.changed.connect(self._algo_changed)
+        self.algo.picked.connect(lambda: self.go(1))
         self.data.changed.connect(self._edited)
         self.params.changed.connect(self._params_changed)
         self.result.running_changed.connect(self._running)
@@ -409,21 +434,26 @@ class Wizard(QWidget):
             if latest:
                 self.data.open_requested.emit(latest)
 
+    def reachable(self, i: int) -> bool:
+        return all(self.can_leave(k) for k in range(i))
+
     def _update_nav(self) -> None:
         running = self.result.running
-        self.prev_btn.setEnabled(self.step > 0 and not running)
-        ok = self.can_leave(self.step)
-        self.next_btn.setEnabled(self.step < RUN and ok and not running)
-        why = "" if ok or self.step == RUN else (
-            "알고리즘을 고르세요" if self.step == 0 else " · ".join(self.data.problems()))
-        self.next_btn.setToolTip(why)
+        why = ""
+        if self.step < RUN and not self.can_leave(self.step):
+            why = "알고리즘을 고르세요" if self.step == 0 else " · ".join(self.data.problems())
         self.reason.setText(why)
         summaries = [self.algo.selected, self.ds.name if self.ds else None, None]
-        for k, lab in enumerate(self.step_labels):
-            text = STEP_TITLES[k]
-            if k < self.step and summaries[k]:
-                text = f"{STEP_TITLES[k]}: {summaries[k]} ✓"
-            lab.setText(text)
-            lab.setStyleSheet("padding: 4px 12px; border-radius: 10px; "
-                              + (f"background: {theme.ACCENT}; color: {theme.BG}; font-weight: bold;" if k == self.step
-                                 else f"background: {theme.PANEL}; color: {theme.MUTED}; border: 1px solid {theme.GRID};"))
+        for k, b in enumerate(self.tabs):
+            b.setText(f"{STEP_TITLES[k]}: {summaries[k]} ✓" if k < self.step and summaries[k] else STEP_TITLES[k])
+            b.setEnabled(not running and (k == self.step or self.reachable(k)))
+            b.setToolTip("" if self.reachable(k) else why)
+            if k == self.step:
+                style = (f"QPushButton {{ padding: 6px 16px; border-radius: 12px; border: 0; font-weight: bold; "
+                         f"background: {theme.ACCENT}; color: {theme.BG}; }}")
+            else:
+                style = (f"QPushButton {{ padding: 6px 16px; border-radius: 12px; background: {theme.PANEL}; "
+                         f"color: {theme.TEXT}; border: 1px solid {theme.GRID}; }} "
+                         f"QPushButton:hover {{ border-color: {theme.ACCENT}; }} "
+                         f"QPushButton:disabled {{ color: #3a4a5e; }}")
+            b.setStyleSheet(style)
