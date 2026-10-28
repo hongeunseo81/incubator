@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
 from impostor import dataset as dataset_mod
@@ -24,6 +24,22 @@ CARD_W, CARD_H = 440, 280   # 알고리즘 카드 크기
 VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
 OK_STYLE = f"color: {theme.OK}"
 BAD_STYLE = f"color: {theme.ALERT}"
+
+
+def section(title: str) -> tuple[QFrame, QVBoxLayout]:
+    """제목이 붙은 테두리 카드. (카드, 안쪽 레이아웃)"""
+    frame = QFrame()
+    frame.setObjectName("section")
+    frame.setStyleSheet(f"QFrame#section {{ background: {theme.PANEL_2}; border: 1px solid {theme.GRID}; "
+                        f"border-radius: 8px; }}")
+    v = QVBoxLayout(frame)
+    v.setContentsMargins(14, 10, 14, 12)
+    v.setSpacing(8)
+    head = QLabel(title)
+    head.setStyleSheet(f"color: {theme.ACCENT}; font-weight: bold; font-family: {theme.MONO}; "
+                       f"background: transparent; border: 0;")
+    v.addWidget(head)
+    return frame, v
 
 
 def _row_title(text: str) -> QLabel:
@@ -140,11 +156,19 @@ class DataStep(QWidget):
         self.grid.changed.connect(self._edited)
         self.status = QLabel()
         self.status.setWordWrap(True)
+        data_box, dv = section("■ 데이터셋")
+        dv.addLayout(bar)
+        dv.addLayout(master_row)
+        dv.addWidget(self.hint)
+        label_box, lv = section("■ 라벨링")
+        lv.addWidget(self.grid, 1)
+        self.sections = {"데이터셋": data_box, "라벨링": label_box}
+        self.status.setStyleSheet(OK_STYLE)
         v = QVBoxLayout(self)
-        v.addLayout(bar)
-        v.addLayout(master_row)
-        v.addWidget(self.hint)
-        v.addWidget(self.grid, 1)
+        v.setContentsMargins(0, 8, 0, 0)
+        v.setSpacing(10)
+        v.addWidget(data_box)
+        v.addWidget(label_box, 1)
         v.addWidget(self.status)
         self.refresh_saved()
         self.update_status()
@@ -247,7 +271,7 @@ class DataStep(QWidget):
 
     def update_status(self) -> None:
         p = self.problems()
-        self.status.setText("준비 완료 — 다음으로 넘어가세요" if not p else "준비 필요: " + " · ".join(p))
+        self.status.setText("준비 완료 — 위쪽 ③ 실행·결과 탭을 누르세요" if not p else "준비 필요: " + " · ".join(p))
         self.status.setStyleSheet(OK_STYLE if not p else BAD_STYLE)
 
     def _params_changed(self) -> None:
@@ -363,9 +387,21 @@ class Wizard(QWidget):
         bar.addSpacing(12)
         bar.addWidget(self.reason)
         bar.addStretch()
+        self.step_bar = QFrame()                  # 단계 탭 띠 — 화면 내용과 분리
+        self.step_bar.setObjectName("stepBar")
+        self.step_bar.setStyleSheet(f"QFrame#stepBar {{ background: {theme.PANEL}; "
+                                    f"border-bottom: 2px solid {theme.GRID}; }}")
+        self.step_bar.setLayout(bar)
+        bar.setContentsMargins(12, 8, 12, 8)
+        body = QWidget()
+        bl = QVBoxLayout(body)
+        bl.setContentsMargins(12, 4, 12, 12)
+        bl.addWidget(self.stack)
         v = QVBoxLayout(self)
-        v.addLayout(bar)
-        v.addWidget(self.stack, 1)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        v.addWidget(self.step_bar)
+        v.addWidget(body, 1)
 
         self.algo.changed.connect(self._algo_changed)
         self.algo.picked.connect(lambda: self.go(1))

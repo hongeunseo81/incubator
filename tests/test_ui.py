@@ -219,3 +219,16 @@ def test_data_step_has_single_list_view(qtbot, small_ds):
     qtbot.addWidget(s)
     s.set_dataset(small_ds)
     assert not s.findChildren(QTabWidget) and not hasattr(s, "label_tab")
+
+
+def test_data_step_is_split_into_sections(qtbot, small_ds):
+    from impostor.ui.wizard import DataStep, Wizard
+    s = DataStep()
+    qtbot.addWidget(s)
+    s.set_dataset(small_ds)
+    assert list(s.sections) == ["데이터셋", "라벨링"]
+    assert s.grid.parent() is s.sections["라벨링"] or s.sections["라벨링"].isAncestorOf(s.grid)
+    assert s.sections["데이터셋"].isAncestorOf(s.master_path)
+    w = Wizard()
+    qtbot.addWidget(w)
+    assert w.step_bar.objectName() == "stepBar" and all(w.step_bar.isAncestorOf(t) for t in w.tabs)

@@ -2,7 +2,8 @@
 from PySide6.QtGui import QFont
 
 BG = "#0b1220"         # 창 바탕
-PANEL = "#111c2e"      # 입력칸·목록 바탕
+PANEL = "#111c2e"      # 입력칸·목록 바탕, 단계 탭 띠
+PANEL_2 = "#0e1828"    # 구역 카드 바탕
 GRID = "#13304a"       # 사진 영역 격자·테두리
 TEXT = "#cfe8ff"
 MUTED = "#6b86a3"
