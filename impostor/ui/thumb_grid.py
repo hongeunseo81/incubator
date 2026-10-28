@@ -4,7 +4,7 @@
 """
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                                QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget)
@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel
 from impostor.dataset import Dataset, Item, Label
 from impostor.imageio import imread, load_mask
 from impostor.ui.canvas import to_pixmap
-from impostor.ui.label_tab import LABEL_COLOR, LABEL_TEXT
+from impostor.ui.label_tab import KEY_LABEL, LABEL_COLOR, LABEL_TEXT
 
 FILTERS = ["전체", "정상", "간섭", "미분류"]
 
@@ -48,8 +48,8 @@ class ThumbGrid(QWidget):
         top.addWidget(self.counts)
         top.addStretch()
         top.addWidget(QLabel("선택한 항목을"))
-        for lab in (Label.NORMAL, Label.INTERFERENCE, Label.UNLABELED):
-            b = QPushButton(LABEL_TEXT[lab])
+        for lab, key in ((Label.NORMAL, "N"), (Label.INTERFERENCE, "I"), (Label.UNLABELED, "U")):
+            b = QPushButton(f"{LABEL_TEXT[lab]} ({key})")
             b.clicked.connect(lambda _=False, l=lab: self.apply(l))
             top.addWidget(b)
             self.buttons[lab] = b
@@ -62,6 +62,7 @@ class ThumbGrid(QWidget):
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.view.currentRowChanged.connect(self._preview)
         self.view.itemDoubleClicked.connect(lambda w: self.open_item.emit(self.shown[self.view.row(w)]))
+        self.view.installEventFilter(self)
         self.preview = QLabel("항목을 클릭하면 여기에 보입니다")
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setMinimumWidth(400)
@@ -71,7 +72,7 @@ class ThumbGrid(QWidget):
         sp.addWidget(self.view)
         sp.addWidget(self.preview)
         sp.setSizes([420, 800])
-        hint = QLabel("↑/↓로 넘기며 보기 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
+        hint = QLabel("N 정상 · I 간섭 · U 미분류 (선택한 항목에 적용) · ↑/↓로 넘기며 보기 · 드래그·Ctrl/Shift 클릭으로 여러 개 선택 · 더블클릭하면 크게 보고 박스 그리기")
         hint.setStyleSheet("color: gray")
 
         v = QVBoxLayout(self)
@@ -139,6 +140,13 @@ class ThumbGrid(QWidget):
         h = max(1, round(img.shape[0] * w / img.shape[1]))
         img = cv2.resize(img, (w, h), interpolation=cv2.INTER_AREA)
         self.preview.setPixmap(to_pixmap(img))
+
+    def eventFilter(self, obj, e) -> bool:
+        # 목록이 글자 키로 항목을 찾지 않도록 먼저 가로챈다
+        if obj is self.view and e.type() == QEvent.KeyPress and e.key() in KEY_LABEL:
+            self.apply(KEY_LABEL[e.key()])
+            return True
+        return super().eventFilter(obj, e)
 
     # ---- 동작 ----
     def apply(self, label: Label) -> None:

@@ -64,3 +64,17 @@ def test_filter(grid):
     g.buttons[Label.NORMAL].click()
     g.filter.setCurrentText("미분류")
     assert g.view.count() == 1
+
+
+def test_shortcuts_apply_to_selection(qtbot, grid):
+    from PySide6.QtCore import Qt
+    g, ds = grid
+    select(g, [0, 1])
+    qtbot.keyClick(g.view, Qt.Key_I)
+    assert all(i.label is Label.INTERFERENCE for i in ds.items)
+    select(g, [1])
+    qtbot.keyClick(g.view, Qt.Key_N)
+    assert ds.items[1].label is Label.NORMAL
+    qtbot.keyClick(g.view, Qt.Key_U)
+    assert ds.items[1].label is Label.UNLABELED
+    assert "(I)" in g.buttons[Label.INTERFERENCE].text()
