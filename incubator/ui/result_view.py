@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QSlider, QSplitter,
+from PySide6.QtWidgets import (QFileDialog, QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QSlider, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from incubator.algorithms import REGISTRY
@@ -19,7 +19,7 @@ from incubator.ui.canvas import ImageCanvas
 from incubator.ui import theme
 from incubator.ui.labels import LABEL_TEXT
 from incubator.ui.sections import section
-from incubator.ui.worker import RunWorker
+from incubator.ui.worker import ExportWorker, RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
 STEPS = 1000
@@ -106,6 +106,8 @@ class ResultView(QWidget):
         self.slider.changed.connect(self._recompute)
         self.views: dict[str, ImageCanvas] = {}
         self.worker: RunWorker | None = None
+        self.exporter: ExportWorker | None = None
+        self.metrics = None
         self.mask = None
 
         self.title = QLabel()
@@ -127,13 +129,18 @@ class ResultView(QWidget):
         self.stop_btn.setMinimumSize(110, 44)
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop)
+        self.export_btn = QPushButton("⇩  모델 내보내기")
+        self.export_btn.setMinimumSize(150, 44)
+        self.export_btn.setToolTip("검증한 이 모델을 현장용 묶음(ONNX + 임계값·마스크·마스터)으로 저장합니다")
+        self.export_btn.setEnabled(False)
+        self.export_btn.clicked.connect(self.export)
         self.bar = QProgressBar()
         self.bar.setRange(0, 1000)
         self.stage = QLabel()
         top = QHBoxLayout()
-        for w in (self.run_btn, self.stop_btn, self.bar, self.stage):
+        for w in (self.run_btn, self.stop_btn, self.export_btn, self.bar, self.stage):
             top.addWidget(w)
-        top.setStretch(2, 1)
+        top.setStretch(3, 1)
 
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
@@ -184,7 +191,7 @@ class ResultView(QWidget):
     # ---- 상태 ----
     @property
     def running(self) -> bool:
-        return self.worker is not None
+        return self.worker is not None or self.exporter is not None   # 내보내는 동안도 데이터·파라미터를 잠근다
 
     def set_job(self, ds: Dataset, algo: str, params: dict) -> None:
         if ds is not self.ds or (algo, params) != (self.algo, self.params):
@@ -195,14 +202,17 @@ class ResultView(QWidget):
     def clear(self) -> None:
         if self.running:
             return
-        self.snap = self.res = None
+        if self.res is not None:
+            self.res.discard()
+        self.snap = self.res = self.metrics = None
         self.rows = []
         self.table.setRowCount(0)
         self.slider.reset()
         self.images.setRowCount(0)
         self._set_views([])
-        self.stage.setText("")
+        self._set_stage("")
         self.bar.setValue(0)
+        self._update_export_btn()
         self.header.setText("")
         self._set_banner(None, None)
 
@@ -238,6 +248,10 @@ class ResultView(QWidget):
         if self.worker is not None:
             self.worker.request_stop()
             self.worker.wait()
+        if self.exporter is not None:
+            self.exporter.wait()
+        if self.res is not None:
+            self.res.discard()
 
     def _progress(self, stage: str, frac: float) -> None:
         self.stage.setText(stage)
@@ -248,7 +262,54 @@ class ResultView(QWidget):
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.bar.setValue(1000)
+        self._update_export_btn()
         self.running_changed.emit(False)
+
+    # ---- 내보내기 ----
+    def _update_export_btn(self) -> None:
+        ok = self.res is not None and not self.res.skipped and self.res.model is not None
+        self.export_btn.setEnabled(ok and not self.running)
+
+    def pick_dir(self) -> str:
+        return QFileDialog.getExistingDirectory(self, "모델 묶음을 저장할 폴더")
+
+    def export(self) -> None:
+        if not self.export_btn.isEnabled():
+            return
+        root = self.pick_dir()
+        if not root:
+            return
+        self.exporter = ExportWorker(self.res, self.snap, self.threshold, self.metrics, root, self.params, self)
+        self.exporter.progress.connect(self._progress)
+        self.exporter.done.connect(self._exported)
+        self.exporter.finished.connect(self._export_finished)
+        self.run_btn.setEnabled(False)
+        self.export_btn.setEnabled(False)
+        self._set_stage("")
+        self.exporter.start()
+        self.running_changed.emit(True)
+
+    def _exported(self, out) -> None:
+        if isinstance(out, str):
+            self._set_stage(out, theme.ALERT)
+            return
+        path, v = out
+        if v.passed:
+            self._set_stage(f"내보냄: {path}  ·  검증 일치 {v.n - v.mismatched}/{v.n} (최대 차이 {v.max_diff:.2g})", theme.OK)
+        else:
+            self._set_stage(f"내보냄: {path}  ·  ⚠ 검증 불일치 — 판정 다름 {v.mismatched}/{v.n}, "
+                            f"최대 차이 {v.max_diff:.2g}", theme.WARN)
+
+    def _export_finished(self) -> None:
+        self.exporter = None
+        self.run_btn.setEnabled(True)
+        self._update_export_btn()
+        self.running_changed.emit(False)
+
+    def _set_stage(self, text: str, color: str | None = None) -> None:
+        self.stage.setText(text)
+        self.stage.setStyleSheet(f"color: {color}" if color else "")
+        self.stage.setTextInteractionFlags(Qt.TextSelectableByMouse)   # 경로를 복사할 수 있게
 
     def _done(self, res: AlgoResult) -> None:
         self.res = res
@@ -256,7 +317,7 @@ class ResultView(QWidget):
         if res.skipped:
             self.table.setItem(0, 0, QTableWidgetItem(res.skipped))
             self.table.setSpan(0, 0, 1, len(COLUMNS))
-            self.stage.setText(res.skipped)
+            self._set_stage(res.skipped)
             return
         interf, thresh, test = eval_items(self.snap.ds, self.snap.split)
         values = list(res.scores.values())
@@ -280,6 +341,7 @@ class ResultView(QWidget):
         test = [i for i, lab in self.rows if lab is Label.NORMAL]
         m = evaluate({i.path: res.scores[i.path] for i in interf}, {i.path: res.scores[i.path] for i in test},
                      threshold, res.peaks, {i.path: i.boxes for i in interf})
+        self.metrics = m
         cells = [f"{m.missed}/{m.n_interference}", f"{m.false_pos}/{m.n_normal_test}",
                  "-" if m.auc is None else f"{m.auc:.3f}", f"{m.threshold:.4g}",
                  f"{m.hit}/{m.n_hit_eval}" if m.n_hit_eval else "-", f"{res.sec_per_image * 1000:.0f} ms"]

@@ -214,3 +214,111 @@ def test_slider_always_visible_and_locked_until_run(qtbot, make_view):
 def test_run_button_prominent(qtbot, make_view):
     v, _ = make_view(FakeAlgo)
     assert "실행" in v.run_btn.text() and v.run_btn.minimumHeight() >= 40 and v.run_btn.minimumWidth() >= 140
+
+
+class FakeModel:
+    discarded = 0
+
+    def discard(self):
+        type(self).discarded += 1
+
+
+class ModelAlgo(FakeAlgo):
+    def run(self, ds, split, progress, should_stop):
+        r = super().run(ds, split, progress, should_stop)
+        r.model = FakeModel()
+        return r
+
+
+def test_export_button_disabled_without_model(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    assert not v.export_btn.isEnabled()
+    run_and_wait(qtbot, v)
+    assert not v.export_btn.isEnabled()
+
+
+def test_export_button_disabled_when_skipped(qtbot, make_view):
+    v, _ = make_view(SkipAlgo)
+    run_and_wait(qtbot, v)
+    assert not v.export_btn.isEnabled()
+
+
+def test_export_button_enabled_after_result_with_model(qtbot, make_view):
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    assert v.export_btn.isEnabled()
+
+
+def test_clear_discards_model(qtbot, make_view):
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    FakeModel.discarded = 0
+    v.clear()
+    assert FakeModel.discarded == 1 and not v.export_btn.isEnabled()
+
+
+def test_export_reports_path_and_verification(qtbot, make_view, monkeypatch, tmp_path):
+    from incubator.export import Verification
+    from incubator.ui import worker
+    calls = {}
+
+    def fake_export(res, snap, threshold, metrics, out_root, progress, params=None):
+        calls["threshold"], calls["root"] = threshold, out_root
+        return tmp_path / "번들"
+
+    monkeypatch.setattr(worker, "export_bundle", fake_export)
+    monkeypatch.setattr(worker, "verify", lambda *a: Verification(4, 0, 1e-5, True))
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    monkeypatch.setattr(v, "pick_dir", lambda: str(tmp_path))
+    v.export_btn.click()
+    qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
+    assert calls == {"threshold": v.threshold, "root": str(tmp_path)}
+    assert "번들" in v.stage.text() and "일치 4/4" in v.stage.text()
+    assert v.export_btn.isEnabled() and v.run_btn.isEnabled()
+
+
+def test_export_failure_is_shown(qtbot, make_view, monkeypatch, tmp_path):
+    from incubator.ui import worker
+
+    def boom(*a, **k):
+        raise OSError("디스크 가득")
+
+    monkeypatch.setattr(worker, "export_bundle", boom)
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    monkeypatch.setattr(v, "pick_dir", lambda: str(tmp_path))
+    v.export_btn.click()
+    qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
+    assert "디스크 가득" in v.stage.text()
+
+
+def test_export_cancelled_when_no_dir(qtbot, make_view, monkeypatch):
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    monkeypatch.setattr(v, "pick_dir", lambda: "")
+    v.export_btn.click()
+    assert v.exporter is None and v.export_btn.isEnabled()
+
+
+def test_exporting_counts_as_running(qtbot, make_view, monkeypatch, tmp_path):
+    import threading
+    from incubator.export import Verification
+    from incubator.ui import worker
+    gate = threading.Event()
+
+    def slow_export(*a, **k):
+        gate.wait(5)
+        return tmp_path
+
+    monkeypatch.setattr(worker, "export_bundle", slow_export)
+    monkeypatch.setattr(worker, "verify", lambda *a: Verification(1, 0, 0.0, True))
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    monkeypatch.setattr(v, "pick_dir", lambda: str(tmp_path))
+    v.export_btn.click()
+    assert v.running and not v.run_btn.isEnabled()
+    v.clear()                                   # 내보내는 중엔 결과를 지우지 않는다
+    assert v.res is not None
+    gate.set()
+    qtbot.waitUntil(lambda: not v.running, timeout=10000)

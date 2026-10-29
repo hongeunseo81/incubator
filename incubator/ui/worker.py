@@ -4,6 +4,7 @@ import traceback
 from PySide6.QtCore import QThread, Signal
 
 from incubator.algorithms.base import AlgoResult, Cancelled
+from incubator.export import export_bundle, verify
 from incubator.readiness import Snapshot
 
 
@@ -29,3 +30,24 @@ class RunWorker(QThread):
             traceback.print_exc()
             res = AlgoResult(self.algo_name, skipped=f"실행 실패: {e}")
         self.done.emit(res)
+
+
+class ExportWorker(QThread):
+    """모델 묶음을 쓰고 ONNX 로 다시 채점한다. ONNX 변환·CPU 재채점이 수십 초 걸릴 수 있다."""
+    progress = Signal(str, float)
+    done = Signal(object)        # 성공 (묶음 경로, Verification), 실패 사유 str
+
+    def __init__(self, res: AlgoResult, snap: Snapshot, threshold: float, metrics, out_root: str, params: dict,
+                 parent=None):
+        super().__init__(parent)
+        self.res, self.snap, self.threshold, self.metrics = res, snap, threshold, metrics
+        self.out_root, self.params = out_root, params
+
+    def run(self) -> None:
+        try:
+            out = export_bundle(self.res, self.snap, self.threshold, self.metrics, self.out_root, self.progress.emit,
+                                self.params)
+            self.done.emit((out, verify(out, self.res, self.snap, self.progress.emit)))
+        except Exception as e:
+            traceback.print_exc()
+            self.done.emit(f"내보내기 실패: {e}")
