@@ -40,9 +40,10 @@ Incubator에서 실험하고 검증한 모델을 현장 앱(CleVisionSystems, C#
 - `image_size`: [높이, 너비]. 다른 크기면 판정하지 않는다
 - `align`: 위치 보정. 꺼져 있으면 `null`. 켜져 있으면 다음과 같다.
   - `master`: `"master.png"`, `region`: [y0, y1, x0, x1] (마스크 bbox + 40)
-  - 방법: master와 입력의 region을 각각 그레이(float32)로 바꾸고, Hanning 창으로 `phaseCorrelate(master, 입력)`을 돌린다. 결과 (dx, dy)는 입력 내용이 마스터에서 옮겨진 양이다.
-  - 마스크 이동: `warpAffine` 평행이동 (dx, dy), 최근접 보간
-  - 박스 이동: 크기는 유지하고 시작점에 round(dx), round(dy)를 더한 뒤 이미지 안으로 밀어 넣는다
+  - 방법: master.png(3채널 BGR)와 입력의 region을 각각 그레이(float32)로 바꾼다. region 크기의 Hanning 창(`createHanningWindow`)을 써서 `phaseCorrelate(master, 입력, 창)`을 돌린다(첫 인자가 master). 결과 (dx, dy)는 입력 내용이 마스터에서 옮겨진 양이다
+  - 마스크 이동: `warpAffine` 평행이동 (dx, dy)(실수 그대로), 최근접 보간, 바깥은 0
+  - 박스 이동: 크기는 유지하고 시작점에 round(dx), round(dy)를 더한 뒤 이미지 안으로 밀어 넣는다. round는 짝수 반올림(banker's)이며, C# `Math.Round` 기본값과 같다
+- 판정은 `image_size`가 같은 이미지에만 한다. 위치 보정 응답이 0.05 미만이면 측정이 불확실하다(툴은 표시만 하고 판정은 그대로 한다)
 
 ### PatchCore
 
@@ -55,9 +56,16 @@ Incubator에서 실험하고 검증한 모델을 현장 앱(CleVisionSystems, C#
 ### YOLO
 
 - `models`: ["fold1.onnx", …]. 시험 때 정상 점수 규칙과 같게 **모델별 점수의 최댓값**이 이미지 점수다
-- `input`: [1, 3, S, S], S = imgsz. 비율을 유지해 리사이즈하고, 가운데 정렬로 회색(114) 패딩을 넣은 레터박스. BGR→RGB, /255
-- 출력 `output0`: [1, 300, 6] = 레터박스 좌표 x1, y1, x2, y2, conf, cls (NMS 포함, conf ≥ 0.001)
-- 후처리: 원본 좌표로 되돌린 박스 중 (옮긴) mask와 겹치는 박스의 최고 conf = 점수. 없으면 0
+- `input`: [1, 3, H, W] float32 = `input_hw`, `letterbox: "rect"`. 툴의 `.pt` 예측이 rect 레터박스를 쓰기 때문에 ONNX도 같은 고정 크기로 내보낸다(정사각 640×640으로 내보내면 실제 FEM 데이터에서 점수가 최대 0.019 달라졌다).
+  - r = min(S/h, S/w) (S = imgsz), nw = round(w·r), nh = round(h·r), `INTER_LINEAR` 리사이즈
+  - 패딩 크기: 너비 (S−nw) mod 32, 높이 (S−nh) mod 32. 좌·상 = round(d/2 − 0.1), 우·하 = round(d/2 + 0.1), 값 114
+  - BGR→RGB, /255, NCHW
+  - 예: 2064×1544 → 640×479로 리사이즈한 뒤 480×640으로 패딩
+- 출력 `output0`: [1, 300, 6] = 레터박스 좌표 x1, y1, x2, y2, conf, cls (NMS 포함: conf ≥ 0.001, IoU 0.7, 최대 300). 빈 행은 conf 0
+- 원본 좌표 되돌리기: x는 (x − 좌패딩) / (nw/w), y는 (y − 상패딩) / (nh/h). 가로·세로 배율을 따로 쓰고, 결과는 [0, w], [0, h]로 자른다
+- 마스크 겹침: xa = int(x1), ya = int(y1), xb = ceil(x2), yb = ceil(y2). mask[max(ya,0):yb, max(xa,0):xb]에 참이 하나라도 있으면 겹친다
+- 후처리: 겹치는 박스의 최고 conf가 모델 점수이고, 없으면 0이다. 이미지 점수는 모델 점수들의 최댓값이다. peak는 그 박스의 중심(정수 나눗셈)이다
+- `report.json`의 간섭 지표는 자기 겹 모델 점수(박스 없는 간섭은 평균)로 계산한 값이다. 현장은 최댓값을 쓰므로 간섭 점수가 그보다 같거나 높게 나온다. 즉 report의 놓친 건수는 보수적인 값이다
 
 ## 툴 쪽 변경
 
@@ -74,6 +82,8 @@ Incubator에서 실험하고 검증한 모델을 현장 앱(CleVisionSystems, C#
   - YOLO: 임계값용·시험용 정상(화면 점수가 모델별 최댓값인 이미지)만. 간섭은 자기 겹 모델로만 채점했기 때문에 비교하지 않는다
 - 통과 조건: 모든 이미지의 판정(점수 ≥ 임계값)이 같고, 점수 차이가 max(1e-3, 임계값의 1%) 이하
 - 결과(비교 장수, 판정 불일치 수, 최대 차이, 통과 여부)는 `report.json`과 화면에 남긴다
+- 검증 자체가 오류로 끝나면 검증 안 된 묶음이 현장에 가지 않도록 폴더를 지운다
+- `report.json`에 torch, ultralytics, onnx, onnxruntime 버전을 남긴다. ultralytics는 레터박스 방식이 버전마다 달라질 수 있어 8.4.191로 고정한다
 
 ## 구현자 판단으로 남긴 것
 
