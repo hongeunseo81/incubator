@@ -14,6 +14,9 @@ dependencies = [
     "opencv-python",
     "numpy",
     "scikit-learn",
+    "onnx",
+    "onnxruntime",
+    "onnxslim",
 ]
 
 [project.optional-dependencies]
