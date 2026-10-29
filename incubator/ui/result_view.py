@@ -142,15 +142,13 @@ class ResultView(QWidget):
         self.stop_btn.setMinimumSize(110, 44)
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop)
-        self.export_btn = QPushButton("📦  모델 내보내기")
-        self.export_btn.setFixedSize(220, 48)
+        self.export_btn = QPushButton("모델 내보내기")
+        self.export_btn.setMinimumSize(180, 44)
         self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.setToolTip("검증한 이 모델을 현장용 묶음(ONNX + 임계값·마스크·마스터)으로 저장합니다")
-        self.export_btn.setStyleSheet(            # 학습이 끝나면 다음 할 일로 눈에 띄게 — 알약 모양 초록 그라데이션
-            f"QPushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {theme.OK}, stop:1 {theme.ACCENT}); "
-            f"color: {theme.BG}; font-size: 17px; font-weight: bold; border: 0; border-radius: 24px; }} "
-            f"QPushButton:hover {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6be8b4, stop:1 #6fe3d8); }} "
-            f"QPushButton:pressed {{ background: {theme.OK}; }} "
+        self.export_btn.setStyleSheet(            # 학습 버튼과 같은 모양, 색만 초록
+            f"QPushButton {{ background: {theme.OK}; color: {theme.BG}; font-size: 16px; font-weight: bold; "
+            f"border: 0; border-radius: 8px; }} QPushButton:hover {{ background: #6be8b4; }} "
             f"QPushButton:disabled {{ background: #1d3a44; color: #3f6470; }}")
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self.export)
