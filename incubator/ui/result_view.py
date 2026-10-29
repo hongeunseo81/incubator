@@ -24,6 +24,7 @@ from incubator.ui.worker import ExportWorker, RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
 METRIC_W = 110   # 성적표 칸 폭
+STAGE_W = 320    # 진행 막대 옆 문구 칸 폭
 STEPS = 1000
 MISS_BG = QColor("#4a1c24")      # 놓침 — 어두운 빨강
 FP_BG = QColor("#4a3618")        # 오검출 — 어두운 주황
@@ -156,6 +157,7 @@ class ResultView(QWidget):
         self.bar = QProgressBar()
         self.bar.setRange(0, 1000)
         self.stage = QLabel()
+        self.stage.setFixedWidth(STAGE_W)           # 문구 길이가 바뀌어도 진행 막대 폭이 그대로이게
         top = QHBoxLayout()
         for w in (self.run_btn, self.stop_btn, self.bar, self.stage):
             top.addWidget(w)
@@ -273,7 +275,7 @@ class ResultView(QWidget):
     def stop(self) -> None:
         if self.worker is not None:
             self.worker.request_stop()
-            self.stage.setText("중단 요청…")
+            self._set_stage("중단 요청…")
 
     def shutdown(self) -> None:
         if self.worker is not None:
@@ -285,7 +287,7 @@ class ResultView(QWidget):
             self.res.discard()
 
     def _progress(self, stage: str, frac: float) -> None:
-        self.stage.setText(stage)
+        self._set_stage(stage)
         self.bar.setValue(int(frac * 1000))
 
     def _finished(self) -> None:
@@ -294,7 +296,7 @@ class ResultView(QWidget):
         self.stop_btn.setEnabled(False)
         self.bar.setValue(1000)
         if self.res is not None and not self.res.skipped:
-            self._set_stage("")              # '… 완료' 대신 켜진 내보내기 버튼이 다음 할 일을 알려 준다
+            self._set_stage("학습 완료", theme.OK)
         self._update_export_btn()
         self.running_changed.emit(False)
 
@@ -340,9 +342,10 @@ class ResultView(QWidget):
         self.running_changed.emit(False)
 
     def _set_stage(self, text: str, color: str | None = None) -> None:
-        self.stage.setText(text)
+        """폭이 고정이라 긴 문구는 …로 줄이고, 전체(내보낸 경로 등)는 툴팁으로 보인다."""
+        self.stage.setText(self.stage.fontMetrics().elidedText(text, Qt.ElideRight, STAGE_W - 8))
+        self.stage.setToolTip(text)
         self.stage.setStyleSheet(f"color: {color}" if color else "")
-        self.stage.setTextInteractionFlags(Qt.TextSelectableByMouse)   # 경로를 복사할 수 있게
 
     def _done(self, res: AlgoResult) -> None:
         self.res = res

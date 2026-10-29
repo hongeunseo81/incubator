@@ -274,7 +274,7 @@ def test_export_reports_path_and_verification(qtbot, make_view, monkeypatch, tmp
     v.export_btn.click()
     qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
     assert calls == {"threshold": v.threshold, "root": str(tmp_path)}
-    assert "번들" in v.stage.text() and "일치 4/4" in v.stage.text()
+    assert "번들" in v.stage.toolTip() and "일치 4/4" in v.stage.toolTip()
     assert v.export_btn.isEnabled() and v.run_btn.isEnabled()
 
 
@@ -290,7 +290,7 @@ def test_export_failure_is_shown(qtbot, make_view, monkeypatch, tmp_path):
     monkeypatch.setattr(v, "pick_dir", lambda: str(tmp_path))
     v.export_btn.click()
     qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
-    assert "디스크 가득" in v.stage.text()
+    assert "디스크 가득" in v.stage.toolTip()
 
 
 def test_export_cancelled_when_no_dir(qtbot, make_view, monkeypatch):
@@ -339,7 +339,7 @@ def test_failed_verification_removes_bundle(qtbot, make_view, monkeypatch, tmp_p
     monkeypatch.setattr(v, "pick_dir", lambda: str(tmp_path))
     v.export_btn.click()
     qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
-    assert not bundle.exists() and "ORT 오류" in v.stage.text() and "지웠" in v.stage.text()
+    assert not bundle.exists() and "ORT 오류" in v.stage.toolTip() and "지웠" in v.stage.toolTip()
 
 
 def test_patchcore_hides_location_hit_and_boxes(qtbot, monkeypatch, tmp_path):
@@ -375,10 +375,10 @@ class DoneAlgo(ModelAlgo):
         return super().run(ds, split, progress, should_stop)
 
 
-def test_finished_run_clears_stage_text(qtbot, make_view):
+def test_finished_run_says_done(qtbot, make_view):
     v, _ = make_view(DoneAlgo)
     run_and_wait(qtbot, v)
-    assert v.stage.text() == "" and v.export_btn.isEnabled()
+    assert v.stage.text() == "학습 완료" and v.export_btn.isEnabled()
 
 
 def test_metrics_table_compact_with_export_beside(qtbot, make_view):
@@ -390,3 +390,12 @@ def test_metrics_table_compact_with_export_beside(qtbot, make_view):
     t = v.table.mapTo(v, v.table.rect().topRight())
     b = v.export_btn.mapTo(v, v.export_btn.rect().topLeft())
     assert b.x() > t.x() and abs(b.y() - t.y()) < v.table.height()     # 표 바로 오른쪽
+
+
+def test_stage_label_fixed_width_so_bar_does_not_jump(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    w = v.stage.width() if v.stage.minimumWidth() == v.stage.maximumWidth() else None
+    assert w is not None
+    v._set_stage("아주 긴 문구 " * 30)
+    assert v.stage.minimumWidth() == v.stage.maximumWidth() == w
+    assert v.stage.toolTip().startswith("아주 긴 문구") and v.stage.text().endswith("…")
