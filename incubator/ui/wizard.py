@@ -46,7 +46,7 @@ class AlgoStep(QWidget):
         super().__init__()
         self.selected: str | None = None
         self.buttons: dict[str, QPushButton] = {}
-        title = QLabel("어떤 알고리즘으로 찾을까요?")
+        title = QLabel("어떤 방식으로 학습할까요?")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(f"color: {theme.ACCENT}; font-size: 26px; font-weight: bold; font-family: {theme.MONO}")
         row = QHBoxLayout()
