@@ -1,8 +1,8 @@
 # Incubator
 
 이물 검출 모델을 **실험하고, 데이터를 먹여 학습시키고, 메인 앱(CleVisionSystems)에 넣기 전에 검증하는** 툴.
-스타트업 인큐베이터처럼 모델을 키워서 현장으로 졸업시킨다. 지원 알고리즘: PatchCore(이상탐지), YOLO(검출).
-설계: `docs/superpowers/specs/2026-10-28-incubator-design.md` (이전 이름: Impostor)
+지원 알고리즘: PatchCore(이상탐지), YOLO(검출).
+설계: `docs/superpowers/specs/2026-10-28-incubator-design.md`
 
 ## 설치
 ```
