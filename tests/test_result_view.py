@@ -340,3 +340,19 @@ def test_failed_verification_removes_bundle(qtbot, make_view, monkeypatch, tmp_p
     v.export_btn.click()
     qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
     assert not bundle.exists() and "ORT 오류" in v.stage.text() and "지웠" in v.stage.text()
+
+
+def test_patchcore_hides_location_hit_and_boxes(qtbot, monkeypatch, tmp_path):
+    monkeypatch.setattr(rv, "REGISTRY", {"PatchCore": FakeAlgo, "YOLO": FakeAlgo})
+    v = rv.ResultView()
+    qtbot.addWidget(v)
+    ds = make_synthetic(tmp_path, n_normal=10, n_boxed=2)
+    hit = rv.COLUMNS.index("위치 적중")
+    v.set_job(ds, "PatchCore", {})
+    run_and_wait(qtbot, v)
+    assert v.table.isColumnHidden(hit)
+    row = next(r for r, (it, _) in enumerate(v.rows) if it.boxes)
+    v.images.selectRow(row)
+    assert all(c.box_count() == 0 for c in v.views.values())
+    v.set_job(ds, "YOLO", {})
+    assert not v.table.isColumnHidden(hit)

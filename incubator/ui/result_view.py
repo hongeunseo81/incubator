@@ -109,6 +109,7 @@ class ResultView(QWidget):
         self.exporter: ExportWorker | None = None
         self.metrics = None
         self.mask = None
+        self.boxes_enabled = True
 
         self.title = QLabel()
         self.header = QLabel()                 # ■ SCAN COMPLETE · 알고리즘 · 데이터셋        ⚠ N TARGETS
@@ -198,6 +199,8 @@ class ResultView(QWidget):
             self.clear()
         self.ds, self.algo, self.params = ds, algo, dict(params)
         self.title.setText(f"<b>{algo}</b> · {ds.name}")
+        self.boxes_enabled = algo == "YOLO"     # PatchCore 는 박스를 쓰지 않는다 — 정답 박스·위치 적중 숨김
+        self.table.setColumnHidden(COLUMNS.index("위치 적중"), not self.boxes_enabled)
 
     def clear(self) -> None:
         if self.running:
@@ -423,5 +426,5 @@ class ResultView(QWidget):
                     canvas.set_heatmap(self.res.maps[it.path], float(vals.min()), float(vals.max()))
                 if it.path in self.res.pred_boxes:
                     canvas.set_pred_boxes(self.res.pred_boxes[it.path])
-            canvas.set_boxes(it.boxes)
+            canvas.set_boxes(it.boxes if self.boxes_enabled else [])
             canvas.set_target(self.res.peaks.get(it.path) if locked else None, locked)   # 정상 판정엔 조준선 없음
