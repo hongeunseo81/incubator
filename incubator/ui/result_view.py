@@ -4,7 +4,8 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QFileDialog, QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSizePolicy, QSlider, QSplitter,
+from PySide6.QtWidgets import (QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton,
+                               QSizePolicy, QSlider, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from incubator.algorithms import REGISTRY
@@ -43,17 +44,17 @@ class ThresholdRow(QWidget):
             f"width: 22px; margin: -9px 0; border-radius: 13px; }} "
             f"QSlider::groove:horizontal:disabled {{ background: {theme.GRID}; }} "      # 결과 전 잠김 → 회색
             f"QSlider::handle:horizontal:disabled {{ background: #2a3a4e; border-color: #3a4a5e; }}")
-        self.value_label = QLabel()
-        self.value_label.setMinimumWidth(90)
-        self.value_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
-                                       f"font-family: {theme.MONO}")
+        self.value_edit = QLineEdit()             # 직접 입력 — 슬라이더 범위 밖 값도 그대로 쓴다
+        self.value_edit.setFixedWidth(130)
+        self.value_edit.setToolTip("임계값을 직접 입력하고 Enter")
         self.auto_btn = QPushButton("자동")
         h = QHBoxLayout(self)
         h.setContentsMargins(0, 0, 0, 0)
-        for w in (self.slider, self.value_label, self.auto_btn):
+        for w in (self.slider, self.value_edit, self.auto_btn):
             h.addWidget(w)
         h.setStretch(0, 1)
         self.slider.valueChanged.connect(self._slid)
+        self.value_edit.editingFinished.connect(self._typed)
         self.auto_btn.clicked.connect(lambda: self.set_value(self.auto))
         self.reset()
 
@@ -63,19 +64,28 @@ class ThresholdRow(QWidget):
         self.slider.blockSignals(True)
         self.slider.setValue(STEPS // 2)
         self.slider.blockSignals(False)
-        self.value_label.setText("—")
-        self.value_label.setStyleSheet(f"font-size: 14px; color: {theme.MUTED}")
+        self.value_edit.setText("—")
+        self.value_edit.setStyleSheet(f"font-size: 14px; color: {theme.MUTED}")
 
     def configure(self, lo: float, hi: float, auto: float) -> None:
         self.lo, self.hi, self.auto = lo, hi, auto
-        self.value_label.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
-                                       f"font-family: {theme.MONO}")
+        self.value_edit.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {theme.ALERT}; "
+                                      f"font-family: {theme.MONO}; border: 1px solid {theme.ALERT}")
         self.setEnabled(True)
         self.set_value(auto)
 
     def _slid(self, pos: int) -> None:
         self.value = self.lo + (self.hi - self.lo) * pos / STEPS
         self._emit()
+
+    def _typed(self) -> None:
+        try:
+            v = float(self.value_edit.text())
+        except ValueError:
+            self.value_edit.setText(f"{self.value:.4g}")    # 숫자가 아니면 이전 값으로
+            return
+        if v != self.value:
+            self.set_value(v)
 
     def set_value(self, v: float) -> None:
         self.value = v
@@ -86,7 +96,7 @@ class ThresholdRow(QWidget):
         self._emit()
 
     def _emit(self) -> None:
-        self.value_label.setText(f"{self.value:.4g}")
+        self.value_edit.setText(f"{self.value:.4g}")
         self.changed.emit(self.value)
 
 
@@ -131,8 +141,13 @@ class ResultView(QWidget):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop)
         self.export_btn = QPushButton("⇩  모델 내보내기")
-        self.export_btn.setMinimumSize(150, 44)
+        self.export_btn.setMinimumSize(180, 44)
+        self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.setToolTip("검증한 이 모델을 현장용 묶음(ONNX + 임계값·마스크·마스터)으로 저장합니다")
+        self.export_btn.setStyleSheet(            # 실행이 끝나면 다음 할 일로 눈에 띄게
+            f"QPushButton {{ background: {theme.OK}; color: {theme.BG}; font-size: 16px; font-weight: bold; "
+            f"border: 0; border-radius: 8px; }} QPushButton:hover {{ background: #6be8b4; }} "
+            f"QPushButton:disabled {{ background: #1d3a44; color: #3f6470; }}")
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self.export)
         self.bar = QProgressBar()
@@ -265,6 +280,8 @@ class ResultView(QWidget):
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.bar.setValue(1000)
+        if self.res is not None and not self.res.skipped:
+            self._set_stage("")              # '… 완료' 대신 켜진 내보내기 버튼이 다음 할 일을 알려 준다
         self._update_export_btn()
         self.running_changed.emit(False)
 

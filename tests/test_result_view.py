@@ -204,7 +204,7 @@ def test_result_sections_and_big_slider(qtbot, make_view):
 def test_slider_always_visible_and_locked_until_run(qtbot, make_view):
     v, _ = make_view(FakeAlgo)
     assert v.slider is not None and not v.slider.isEnabled()
-    assert v.slider.value_label.text() == "—"
+    assert v.slider.value_edit.text() == "—"
     run_and_wait(qtbot, v)
     assert v.slider.isEnabled()
     v.clear()
@@ -356,3 +356,26 @@ def test_patchcore_hides_location_hit_and_boxes(qtbot, monkeypatch, tmp_path):
     assert all(c.box_count() == 0 for c in v.views.values())
     v.set_job(ds, "YOLO", {})
     assert not v.table.isColumnHidden(hit)
+
+
+def test_threshold_typed_directly(qtbot, make_view):
+    v, _ = make_view(FakeAlgo)
+    run_and_wait(qtbot, v)
+    v.slider.value_edit.setText("0.4")              # 평가 정상 0.5 → 전부 오검출, 범위 밖 값도 그대로
+    v.slider.value_edit.editingFinished.emit()
+    assert v.threshold == pytest.approx(0.4) and cell(v, "오검출") == "2/2"
+    v.slider.value_edit.setText("abc")              # 숫자가 아니면 이전 값으로 되돌린다
+    v.slider.value_edit.editingFinished.emit()
+    assert v.threshold == pytest.approx(0.4) and v.slider.value_edit.text() == "0.4"
+
+
+class DoneAlgo(ModelAlgo):
+    def run(self, ds, split, progress, should_stop):
+        progress("Fake 완료", 1.0)
+        return super().run(ds, split, progress, should_stop)
+
+
+def test_finished_run_clears_stage_text(qtbot, make_view):
+    v, _ = make_view(DoneAlgo)
+    run_and_wait(qtbot, v)
+    assert v.stage.text() == "" and v.export_btn.isEnabled()
