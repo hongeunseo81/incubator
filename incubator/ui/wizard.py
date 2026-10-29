@@ -1,4 +1,4 @@
-"""단계 마법사: ① 알고리즘 → ② 데이터 준비 → ③ 파라미터 → ④ 실행·결과."""
+"""단계 마법사: ① 알고리즘 → ② 데이터 준비 → ③ 학습·결과(왼쪽 파라미터)."""
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -15,7 +15,7 @@ from incubator.ui.result_view import ResultView
 from incubator.ui.sections import section
 from incubator.ui.thumb_grid import ThumbGrid
 
-STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 실행·결과"]
+STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 학습·결과"]
 RUN = 2   # 마지막 단계: 왼쪽 파라미터 + 오른쪽 실행·결과
 DESCRIPTIONS = {
     "PatchCore": "이상탐지 — 정상 이미지만으로 학습해 정상과 다른 부분을 찾습니다. 처음 보는 이물도 잡을 수 있습니다.\n"

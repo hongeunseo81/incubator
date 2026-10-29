@@ -29,7 +29,7 @@ class RunWorker(QThread):
             res = AlgoResult(self.algo_name, skipped="중단했습니다")
         except Exception as e:   # 실패해도 앱은 살아 있고, 사유는 결과 화면에 남긴다
             traceback.print_exc()
-            res = AlgoResult(self.algo_name, skipped=f"실행 실패: {e}")
+            res = AlgoResult(self.algo_name, skipped=f"학습 실패: {e}")
         self.done.emit(res)
 
 

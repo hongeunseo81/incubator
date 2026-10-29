@@ -92,7 +92,7 @@ def test_slider_and_auto(qtbot, make_view):
 def test_failure_reason_shown(qtbot, make_view):
     v, _ = make_view(FailAlgo)
     run_and_wait(qtbot, v)
-    assert "실행 실패" in table_text(v) and "x.png" in table_text(v)
+    assert "학습 실패" in table_text(v) and "x.png" in table_text(v)
 
 
 def test_skipped_reason_shown(qtbot, make_view):
@@ -193,7 +193,7 @@ def test_no_target_on_clear(qtbot, make_view):
 def test_result_sections_and_big_slider(qtbot, make_view):
     v, ds = make_view(FakeAlgo)
     run_and_wait(qtbot, v)
-    assert list(v.sections) == ["실행", "임계값", "이미지"]
+    assert list(v.sections) == ["학습", "임계값", "이미지"]
     assert v.sections["임계값"].isAncestorOf(v.slider)
     from PySide6.QtWidgets import QLabel
     texts = " ".join(l.text() for l in v.sections["임계값"].findChildren(QLabel))
@@ -213,7 +213,7 @@ def test_slider_always_visible_and_locked_until_run(qtbot, make_view):
 
 def test_run_button_prominent(qtbot, make_view):
     v, _ = make_view(FakeAlgo)
-    assert "실행" in v.run_btn.text() and v.run_btn.minimumHeight() >= 40 and v.run_btn.minimumWidth() >= 140
+    assert "학습" in v.run_btn.text() and v.run_btn.minimumHeight() >= 40 and v.run_btn.minimumWidth() >= 140
 
 
 class FakeModel:
@@ -379,3 +379,14 @@ def test_finished_run_clears_stage_text(qtbot, make_view):
     v, _ = make_view(DoneAlgo)
     run_and_wait(qtbot, v)
     assert v.stage.text() == "" and v.export_btn.isEnabled()
+
+
+def test_metrics_table_compact_with_export_beside(qtbot, make_view):
+    v, _ = make_view(ModelAlgo)
+    assert not v.table.horizontalHeader().stretchLastSection()
+    v.resize(1400, 800)
+    v.show()
+    run_and_wait(qtbot, v)
+    t = v.table.mapTo(v, v.table.rect().topRight())
+    b = v.export_btn.mapTo(v, v.export_btn.rect().topLeft())
+    assert b.x() > t.x() and abs(b.y() - t.y()) < v.table.height()     # 표 바로 오른쪽

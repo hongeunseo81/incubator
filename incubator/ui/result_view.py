@@ -1,10 +1,10 @@
-"""④ 실행·결과: 알고리즘 1개, 실행 1회분. 결과는 실행 시점 스냅샷만 쓴다."""
+"""③ 학습·결과: 알고리즘 1개, 학습 1회분. 결과는 실행 시점 스냅샷만 쓴다."""
 from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QFileDialog, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton,
+from PySide6.QtWidgets import (QFileDialog, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QProgressBar, QPushButton,
                                QSizePolicy, QSlider, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
@@ -23,6 +23,7 @@ from incubator.ui.sections import section
 from incubator.ui.worker import ExportWorker, RunWorker
 
 COLUMNS = ["놓침", "오검출", "AUC", "임계값", "위치 적중", "처리 시간"]
+METRIC_W = 110   # 성적표 칸 폭
 STEPS = 1000
 MISS_BG = QColor("#4a1c24")      # 놓침 — 어두운 빨강
 FP_BG = QColor("#4a3618")        # 오검출 — 어두운 주황
@@ -128,7 +129,7 @@ class ResultView(QWidget):
         self.banner.setFont(theme.mono(12, bold=True))
         self.banner.setAlignment(Qt.AlignCenter)
         self.banner.setFixedHeight(28)
-        self.run_btn = QPushButton("▶  실행")
+        self.run_btn = QPushButton("▶  학습")
         self.run_btn.setMinimumSize(160, 44)
         self.run_btn.setCursor(Qt.PointingHandCursor)
         self.run_btn.setStyleSheet(
@@ -144,7 +145,7 @@ class ResultView(QWidget):
         self.export_btn.setMinimumSize(180, 44)
         self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.setToolTip("검증한 이 모델을 현장용 묶음(ONNX + 임계값·마스크·마스터)으로 저장합니다")
-        self.export_btn.setStyleSheet(            # 실행이 끝나면 다음 할 일로 눈에 띄게
+        self.export_btn.setStyleSheet(            # 학습이 끝나면 다음 할 일로 눈에 띄게
             f"QPushButton {{ background: {theme.OK}; color: {theme.BG}; font-size: 16px; font-weight: bold; "
             f"border: 0; border-radius: 8px; }} QPushButton:hover {{ background: #6be8b4; }} "
             f"QPushButton:disabled {{ background: #1d3a44; color: #3f6470; }}")
@@ -154,15 +155,25 @@ class ResultView(QWidget):
         self.bar.setRange(0, 1000)
         self.stage = QLabel()
         top = QHBoxLayout()
-        for w in (self.run_btn, self.stop_btn, self.export_btn, self.bar, self.stage):
+        for w in (self.run_btn, self.stop_btn, self.bar, self.stage):
             top.addWidget(w)
-        top.setStretch(3, 1)
+        top.setStretch(2, 1)
 
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setDefaultSectionSize(METRIC_W)   # 칸을 늘리지 않고 표를 내용 폭에 맞춘다
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.table.verticalHeader().hide()
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.table.setSizeAdjustPolicy(QTableWidget.AdjustToContents)
+        self.table.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.table.setMaximumHeight(80)
+        metrics_row = QHBoxLayout()               # 성적표 바로 옆에서 내보낸다
+        metrics_row.addWidget(self.table)
+        metrics_row.addSpacing(12)
+        metrics_row.addWidget(self.export_btn, 0, Qt.AlignVCenter)
+        metrics_row.addStretch()
         self.slider_box = QVBoxLayout()
         self.slider_box.addWidget(self.slider)
 
@@ -188,15 +199,15 @@ class ResultView(QWidget):
         bottom.addWidget(views)
         bottom.setSizes([380, 1000])
 
-        run_box, rv = section("■ 실행")
+        run_box, rv = section("■ 학습")
         rv.addLayout(top)
         rv.addWidget(self.header)
-        rv.addWidget(self.table)
+        rv.addLayout(metrics_row)
         thr_box, tv = section("■ 임계값")
         tv.addLayout(self.slider_box)
         img_box, iv = section("■ 이미지")
         iv.addWidget(bottom, 1)
-        self.sections = {"실행": run_box, "임계값": thr_box, "이미지": img_box}
+        self.sections = {"학습": run_box, "임계값": thr_box, "이미지": img_box}
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)

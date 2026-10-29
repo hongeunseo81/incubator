@@ -94,7 +94,7 @@ def _versions() -> dict:
 def export_bundle(res: AlgoResult, snap: Snapshot, threshold: float, metrics: Metrics, out_root,
                   progress: Progress, params: dict | None = None) -> Path:
     if res.model is None:
-        raise ValueError("내보낼 모델이 없습니다. 먼저 실행하세요.")
+        raise ValueError("내보낼 모델이 없습니다. 먼저 학습하세요.")
     ds = snap.ds
     progress("묶음 준비", 0.0)
     out = _bundle_dir(Path(out_root), ds.name, res.name)

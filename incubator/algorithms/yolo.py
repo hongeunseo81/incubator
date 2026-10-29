@@ -113,7 +113,7 @@ class Yolo:
         boxed = [i for i in interf if i.boxes]
         boxless = [i for i in interf if not i.boxes]
         if len(boxed) < 2:
-            return AlgoResult(self.name, skipped="박스 있는 간섭이 2장 미만이라 YOLO를 실행하지 않았습니다")
+            return AlgoResult(self.name, skipped="박스 있는 간섭이 2장 미만이라 YOLO를 학습하지 않았습니다")
 
         mask = load_mask(ds.mask_path)
         for it in interf + thresh + test + split.train:   # 학습 전에 확인해야 빨리 실패한다

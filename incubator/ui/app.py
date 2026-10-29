@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
         self.set_dataset(ds)
         miss = ds.missing()
         if miss:
-            QMessageBox.warning(self, APP_NAME, f"{len(miss)}개 파일을 찾을 수 없습니다 — 실행에서 제외됩니다.\n"
+            QMessageBox.warning(self, APP_NAME, f"{len(miss)}개 파일을 찾을 수 없습니다 — 학습에서 제외됩니다.\n"
                                                 f"예: {miss[0].path}")
 
     def save(self) -> None:
