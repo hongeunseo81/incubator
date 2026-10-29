@@ -44,6 +44,7 @@ def test_yolo_scores_every_eval_item_and_cleans_up(tmp_path):
     assert all(0.0 <= s <= 1.0 for s in r.scores.values())
     assert r.skipped is None and r.sec_per_image > 0
     assert tmp_dirs() == before
+    r.discard()
 
 
 def test_yolo_rejects_size_mismatch(tmp_path):
@@ -66,3 +67,13 @@ def test_yolo_records_shifts_when_master_available(tmp_path):
     assert set(r.shifts) == set(r.scores)
     p = next(iter(r.shifts))
     assert abs(r.shifts[p][0] - truth[p][0]) <= 1.5
+
+
+@pytest.mark.slow
+def test_yolo_keeps_fold_weights(tmp_path):
+    ds = make_synthetic(tmp_path, n_boxed=4)
+    r = Yolo(dict(FAST, epochs=2, k=2)).run(ds, split_normals(ds), noop, never)
+    assert len(r.model.weights) == 2 and all(os.path.isfile(w) for w in r.model.weights)
+    assert r.model.imgsz == FAST["imgsz"]
+    r.discard()
+    assert not os.path.exists(r.model.root)

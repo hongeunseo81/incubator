@@ -9,6 +9,7 @@ import random
 import shutil
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -24,6 +25,7 @@ from incubator.split import Split
 
 FAST = defaults("YOLO") | {"batch": 8}   # 빠른 모드 — 화면에 없는 batch 만 여기서 정한다
 TMP_PREFIX = "incubator_yolo_"
+MODEL_PREFIX = "incubator_model_"   # 내보내기 전까지 겹별 가중치를 보관하는 폴더
 WEIGHTS_DIR = DATASET_DIR.parent / "weights"
 SEED = 0
 
@@ -38,6 +40,16 @@ def _label_lines(item: Item, w: int, h: int) -> str:
     for x0, y0, x1, y1 in item.boxes:
         lines.append(f"0 {(x0 + x1) / 2 / w:.6f} {(y0 + y1) / 2 / h:.6f} {(x1 - x0) / w:.6f} {(y1 - y0) / h:.6f}")
     return "\n".join(lines)
+
+
+@dataclass
+class YoloModel:
+    weights: list[str]     # 겹별 가중치(.pt) — 현장 점수 = 겹 모델 점수 최댓값
+    root: str
+    imgsz: int
+
+    def discard(self) -> None:
+        shutil.rmtree(self.root, ignore_errors=True)
 
 
 class Yolo:
@@ -117,25 +129,32 @@ class Yolo:
         # 경로 → 겹별 (점수, peak, 박스)
         per: dict[str, list[tuple[float, tuple | None, list]]] = {}
         n_pred, t_pred = 0, 0.0
-        for f, fold in enumerate(folds):
-            check_stop(should_stop)
-            progress(f"YOLO {f + 1}/{k}겹 학습", f / k)
-            root = Path(tempfile.mkdtemp(prefix=TMP_PREFIX))
-            try:
-                train = [i for i in boxed if i not in fold] + split.train
-                model = self._train(self._write_trainset(root, train), root, should_stop)
-                progress(f"YOLO {f + 1}/{k}겹 점수 계산", (f + 0.9) / k)
-                for it in fold + boxless + thresh + test:
-                    check_stop(should_stop)
-                    img = imread(it.path)
-                    t0 = time.perf_counter()
-                    per.setdefault(it.path, []).append(self._predict(model, img, mask_for(it, img)))
-                    t_pred += time.perf_counter() - t0
-                    n_pred += 1
-            finally:
-                shutil.rmtree(root, ignore_errors=True)
+        kept = YoloModel([], tempfile.mkdtemp(prefix=MODEL_PREFIX), self.params["imgsz"])
+        try:
+            for f, fold in enumerate(folds):
+                check_stop(should_stop)
+                progress(f"YOLO {f + 1}/{k}겹 학습", f / k)
+                root = Path(tempfile.mkdtemp(prefix=TMP_PREFIX))
+                try:
+                    train = [i for i in boxed if i not in fold] + split.train
+                    model = self._train(self._write_trainset(root, train), root, should_stop)
+                    kept.weights.append(str(Path(kept.root) / f"fold{f + 1}.pt"))
+                    model.save(kept.weights[-1])          # 채점에 쓴 그 상태 그대로
+                    progress(f"YOLO {f + 1}/{k}겹 점수 계산", (f + 0.9) / k)
+                    for it in fold + boxless + thresh + test:
+                        check_stop(should_stop)
+                        img = imread(it.path)
+                        t0 = time.perf_counter()
+                        per.setdefault(it.path, []).append(self._predict(model, img, mask_for(it, img)))
+                        t_pred += time.perf_counter() - t0
+                        n_pred += 1
+                finally:
+                    shutil.rmtree(root, ignore_errors=True)
+        except BaseException:
+            kept.discard()
+            raise
 
-        res = AlgoResult(self.name, shifts=shifts)
+        res = AlgoResult(self.name, shifts=shifts, model=kept)
         for it in interf + thresh + test:
             preds = per[it.path]
             best = max(preds, key=lambda p: p[0])

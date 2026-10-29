@@ -47,3 +47,13 @@ def test_patchcore_aligns_mask_per_image(tmp_path):
     normal_max = max(r.scores[i.path] for i in thresh + test)
     assert all(r.scores[i.path] > normal_max for i in interf)
     assert all(location_hit(r.peaks[i.path], i.boxes) for i in interf)
+
+
+def test_patchcore_keeps_model(tmp_path):
+    ds = make_synthetic(tmp_path)
+    p = PatchCore()
+    r = p.run(ds, split_normals(ds), noop, lambda: False)
+    m = r.model
+    assert m.bank.shape[1] == 1536 and len(m.bank) <= p.params["coreset"]
+    assert m.input_hw[1] == p.params["width"] and m.input_hw[0] % 8 == 0
+    assert m.score_mask.shape == (224, 224) and m.score_mask.dtype == bool

@@ -5,6 +5,7 @@
 """
 import random
 import time
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -44,6 +45,32 @@ class Extractor(torch.nn.Module):
         return torch.cat([f2, f3], 1)  # B x 1536 x h x w (stride 8)
 
 
+class PatchCoreGraph(torch.nn.Module):
+    """ONNX 로 내보내는 그래프: 특징 추출 + 메모리 뱅크 최근접 거리. 출력 [H/8, W/8]."""
+
+    def __init__(self, bank: torch.Tensor):
+        super().__init__()
+        self.ex = Extractor()
+        self.register_buffer("bank", bank)
+        self.register_buffer("bank_sq", (bank ** 2).sum(1))
+
+    def forward(self, x):
+        f = self.ex(x)[0]
+        c, h, w = f.shape
+        q = f.permute(1, 2, 0).reshape(-1, c)
+        d = (q ** 2).sum(1, keepdim=True) - 2 * q @ self.bank.T + self.bank_sq   # cdist 는 ONNX 로 안 나간다
+        return torch.sqrt(d.clamp_min(0).min(1).values).reshape(h, w)
+
+
+@dataclass
+class PatchCoreModel:
+    bank: np.ndarray                         # N x 1536 float32
+    crop: tuple[int, int, int, int]          # 마스터 기준 특징 추출 영역 y0, y1, x0, x1
+    input_hw: tuple[int, int]                # 신경망 입력 크기
+    score_mask: np.ndarray                   # 침식한 점수 마스크 (bool)
+    params: dict
+
+
 def mask_geometry(mask: np.ndarray, erode: int):
     ys, xs = np.where(mask)
     box = (max(ys.min() - BOX_PAD, 0), min(ys.max() + BOX_PAD, mask.shape[0]),
@@ -60,11 +87,14 @@ class PatchCore:
         self.params = defaults(self.name) | (params or {})
         self.dev = "cuda" if torch.cuda.is_available() else "cpu"
 
+    def _input_hw(self, box) -> tuple[int, int]:
+        y0, y1, x0, x1 = box
+        return max(8, int(round((y1 - y0) * self.params["width"] / (x1 - x0) / 8)) * 8), self.params["width"]
+
     def _prep(self, img, box):
         y0, y1, x0, x1 = box
-        crop = img[y0:y1, x0:x1]
-        h = max(8, int(round(crop.shape[0] * self.params["width"] / crop.shape[1] / 8)) * 8)
-        rs = cv2.resize(crop, (self.params["width"], h), interpolation=cv2.INTER_AREA)
+        h, w = self._input_hw(box)
+        rs = cv2.resize(img[y0:y1, x0:x1], (w, h), interpolation=cv2.INTER_AREA)
         t = torch.from_numpy(cv2.cvtColor(rs, cv2.COLOR_BGR2RGB)).permute(2, 0, 1).float().unsqueeze(0) / 255
         return ((t - MEAN) / STD).to(self.dev)
 
@@ -134,7 +164,8 @@ class PatchCore:
 
         interf, thresh, test = eval_items(ds, split)
         targets = interf + thresh + test
-        res = AlgoResult(self.name)
+        res = AlgoResult(self.name, model=PatchCoreModel(bank.cpu().numpy(), box, self._input_hw(box), eroded,
+                                                          dict(self.params)))
         t0 = time.perf_counter()
         for k, it in enumerate(targets):
             check_stop(should_stop)

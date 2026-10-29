@@ -26,6 +26,12 @@ class AlgoResult:
     shifts: dict[str, tuple[float, float, float]] = field(default_factory=dict)   # 경로 → (dx, dy, 신뢰도)
     sec_per_image: float = 0.0
     skipped: str | None = None                                          # 실행하지 않은 사유
+    model: object | None = None                                         # 내보내기용 학습된 모델
+
+    def discard(self) -> None:
+        """모델이 디스크에 남긴 임시 파일을 지운다."""
+        if hasattr(self.model, "discard"):
+            self.model.discard()
 
 
 class Algorithm(Protocol):
