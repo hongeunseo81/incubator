@@ -129,6 +129,8 @@ class MainWindow(QMainWindow):
 
 
 def main() -> None:
+    from incubator.algorithms.yolo import sweep_stale_temp
+    sweep_stale_temp()           # 지난 비정상 종료가 남긴 YOLO 임시 폴더
     app = QApplication.instance() or QApplication(sys.argv)
     theme.apply(app)
     w = MainWindow()

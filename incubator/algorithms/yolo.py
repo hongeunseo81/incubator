@@ -42,6 +42,15 @@ def _label_lines(item: Item, w: int, h: int) -> str:
     return "\n".join(lines)
 
 
+def sweep_stale_temp(root: str | None = None, max_age_h: float = 24) -> None:
+    """비정상 종료로 남은 학습·가중치 임시 폴더를 지운다. 다른 창이 쓰는 중일 수 있어 오래된 것만."""
+    root = root or tempfile.gettempdir()
+    cutoff = time.time() - max_age_h * 3600
+    for d in Path(root).iterdir():
+        if d.is_dir() and d.name.startswith((TMP_PREFIX, MODEL_PREFIX)) and d.stat().st_mtime < cutoff:
+            shutil.rmtree(d, ignore_errors=True)
+
+
 @dataclass
 class YoloModel:
     weights: list[str]     # 겹별 가중치(.pt) — 현장 점수 = 겹 모델 점수 최댓값

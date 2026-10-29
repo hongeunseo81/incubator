@@ -322,3 +322,21 @@ def test_exporting_counts_as_running(qtbot, make_view, monkeypatch, tmp_path):
     assert v.res is not None
     gate.set()
     qtbot.waitUntil(lambda: not v.running, timeout=10000)
+
+
+def test_failed_verification_removes_bundle(qtbot, make_view, monkeypatch, tmp_path):
+    from incubator.ui import worker
+    bundle = tmp_path / "번들"
+    bundle.mkdir()
+
+    def bad_verify(*a):
+        raise RuntimeError("ORT 오류")
+
+    monkeypatch.setattr(worker, "export_bundle", lambda *a, **k: bundle)
+    monkeypatch.setattr(worker, "verify", bad_verify)
+    v, _ = make_view(ModelAlgo)
+    run_and_wait(qtbot, v)
+    monkeypatch.setattr(v, "pick_dir", lambda: str(tmp_path))
+    v.export_btn.click()
+    qtbot.waitUntil(lambda: v.exporter is None, timeout=10000)
+    assert not bundle.exists() and "ORT 오류" in v.stage.text() and "지웠" in v.stage.text()

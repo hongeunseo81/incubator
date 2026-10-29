@@ -45,6 +45,7 @@ def test_export_patchcore_roundtrip(tmp_path):
     assert v.n == len(interf + thresh + test) and v.mismatched == 0 and v.passed
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert report["verification"]["passed"] and report["metrics"]["n_interference"] == len(interf)
+    assert {"torch", "onnxruntime", "onnx"} <= set(report["versions"])
 
 
 def test_export_without_align(tmp_path):
@@ -62,6 +63,8 @@ def test_export_yolo_roundtrip(tmp_path):
     try:
         man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
         assert man["algorithm"] == "YOLO" and man["models"] == ["fold1.onnx", "fold2.onnx"]
+        assert man["letterbox"] == "rect" and man["input_hw"] == [640, 640]
+        assert "ultralytics" in json.loads((out / "report.json").read_text(encoding="utf-8"))["versions"]
         assert all((out / f).is_file() for f in man["models"])
         v = verify(out, res, snap, noop)
         assert v.n == len(snap.split.thresh + snap.split.test) and v.passed

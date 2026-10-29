@@ -18,28 +18,40 @@ MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 BLUR_SIGMA = 4
 PAD_VALUE = 114
+STRIDE = 32
 
 
-def letterbox(img: np.ndarray, s: int) -> tuple[np.ndarray, float, tuple[int, int]]:
-    """비율 유지 리사이즈 + 가운데 회색 패딩 (Ultralytics LetterBox 와 같은 반올림). → (1x3xSxS RGB/255, 배율, (좌, 상) 패딩)"""
+def rect_shape(hw, s: int, stride: int = STRIDE) -> tuple[int, int]:
+    """rect 레터박스 입력 크기: 긴 변 s, 짧은 변은 stride 배수까지만 채운다 (.pt 예측과 같은 입력)."""
+    h, w = hw
+    r = min(s / h, s / w)
+    nw, nh = max(int(round(w * r)), 1), max(int(round(h * r)), 1)
+    return nh + (s - nh) % stride, nw + (s - nw) % stride
+
+
+def letterbox(img: np.ndarray, s: int, rect: bool = False) -> tuple[np.ndarray, tuple[float, float], tuple[int, int]]:
+    """비율 유지 리사이즈 + 가운데 회색 패딩 (Ultralytics LetterBox 와 같은 반올림). rect 면 rect_shape 크기로만 채운다.
+    → (1x3xSxS RGB/255, (가로, 세로) 배율, (좌, 상) 패딩). 배율은 반올림한 크기 기준이라 가로·세로가 다를 수 있다."""
     h, w = img.shape[:2]
     r = min(s / h, s / w)
-    nw, nh = int(round(w * r)), int(round(h * r))
-    dw, dh = (s - nw) / 2, (s - nh) / 2
+    nw, nh = max(int(round(w * r)), 1), max(int(round(h * r)), 1)
+    oh, ow = rect_shape((h, w), s) if rect else (s, s)
+    dw, dh = (ow - nw) / 2, (oh - nh) / 2
     if (nw, nh) != (w, h):
         img = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR)
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(PAD_VALUE,) * 3)
     x = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).transpose(2, 0, 1)[None].astype(np.float32) / 255
-    return x, r, (left, top)
+    return x, (nw / w, nh / h), (left, top)
 
 
-def unletterbox(xyxy: np.ndarray, scale: float, pad: tuple[int, int]) -> np.ndarray:
+def unletterbox(xyxy: np.ndarray, gain: tuple[float, float], pad: tuple[int, int], shape) -> np.ndarray:
+    """레터박스 좌표 → 원본 좌표, 이미지 안으로 자른다 (Ultralytics scale_boxes)."""
     out = xyxy.astype(np.float32).copy()
-    out[:, [0, 2]] -= pad[0]
-    out[:, [1, 3]] -= pad[1]
-    return out / scale
+    out[:, [0, 2]] = ((out[:, [0, 2]] - pad[0]) / gain[0]).clip(0, shape[1])
+    out[:, [1, 3]] = ((out[:, [1, 3]] - pad[1]) / gain[1]).clip(0, shape[0])
+    return out
 
 
 def phase_shift(master_gray: np.ndarray, img: np.ndarray, region) -> tuple[float, float, float]:
@@ -139,12 +151,12 @@ class Bundle:
             score, peak, _ = patchcore_score(dist, crop, shift_mask(self.masks["score_mask"], dx, dy), img.shape)
             return Scored(score, peak, [], shift)
         mask = shift_mask(self.masks["mask"], dx, dy)
-        x, scale, pad = letterbox(img, m["imgsz"])
+        x, gain, pad = letterbox(img, m["imgsz"], rect=m["letterbox"] == "rect")
         best = (0.0, None, [])
         for sess in self.sessions:
             out = sess.run(None, {"images": x})[0][0]
             dets = out.copy()
-            dets[:, :4] = unletterbox(out[:, :4], scale, pad)
+            dets[:, :4] = unletterbox(out[:, :4], gain, pad, img.shape)
             r = yolo_score(dets, mask)
             if r[0] > best[0]:
                 best = r

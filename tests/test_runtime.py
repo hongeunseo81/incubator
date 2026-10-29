@@ -2,14 +2,14 @@ import cv2
 import numpy as np
 import pytest
 
-from incubator.runtime import letterbox, patchcore_score, phase_shift, unletterbox, yolo_score
+from incubator.runtime import letterbox, patchcore_score, phase_shift, rect_shape, unletterbox, yolo_score
 
 
 def test_letterbox_geometry():
     img = np.zeros((100, 200, 3), np.uint8)
-    x, scale, pad = letterbox(img, 64)
+    x, gain, pad = letterbox(img, 64)
     assert x.shape == (1, 3, 64, 64) and x.dtype == np.float32
-    assert scale == pytest.approx(0.32) and pad == (0, 16)
+    assert gain == pytest.approx((0.32, 0.32)) and pad == (0, 16)
     assert x[0, :, 0, 0] == pytest.approx([114 / 255] * 3)      # 위쪽 패딩
     assert x[0, :, 32, 32] == pytest.approx([0, 0, 0])           # 이미지 영역
 
@@ -24,7 +24,18 @@ def test_letterbox_converts_bgr_to_rgb():
 def test_unletterbox_inverse():
     boxes = np.array([[10.0, 20.0, 50.0, 40.0]])
     in_lb = boxes * 0.32 + np.array([0, 16, 0, 16])
-    assert unletterbox(in_lb, 0.32, (0, 16)) == pytest.approx(boxes)
+    assert unletterbox(in_lb, (0.32, 0.32), (0, 16), (100, 200)) == pytest.approx(boxes)
+
+
+def test_letterbox_gain_per_axis_like_ultralytics():
+    """2064x1544 → 640: 세로는 반올림 때문에 배율이 다르다 (Ultralytics scale_boxes 와 같게)"""
+    _, gain, pad = letterbox(np.zeros((1544, 2064, 3), np.uint8), 640)
+    assert gain == pytest.approx((640 / 2064, 479 / 1544)) and pad == (0, 80)
+
+
+def test_unletterbox_clips_to_image():
+    out = unletterbox(np.array([[-5.0, 10.0, 70.0, 60.0]]), (0.32, 0.32), (0, 16), (100, 200))
+    assert out[0, 0] == 0 and out[0, 2] == 200           # 70 / 0.32 = 218.75 → 너비 200 으로
 
 
 def test_patchcore_score_peak_in_mask():
@@ -63,3 +74,11 @@ def test_runtime_does_not_need_torch():
     code = "import sys, incubator.runtime; print('torch' in sys.modules or 'ultralytics' in sys.modules)"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
     assert out.strip() == "False"
+
+
+def test_letterbox_rect_pads_to_stride_like_pt_predict():
+    """.pt 예측은 rect 레터박스: 짧은 변을 32 배수까지만 채운다 (2064x1544 → 480x640)"""
+    x, gain, pad = letterbox(np.zeros((1544, 2064, 3), np.uint8), 640, rect=True)
+    assert x.shape == (1, 3, 480, 640) and pad == (0, 0)
+    assert gain == pytest.approx((640 / 2064, 479 / 1544))
+    assert rect_shape((1544, 2064), 640) == (480, 640) and rect_shape((224, 224), 640) == (640, 640)

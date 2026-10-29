@@ -17,7 +17,7 @@ from incubator.align import Aligner, reference_for
 from incubator.imageio import imread, load_mask
 from incubator.metrics import Metrics
 from incubator.readiness import Snapshot
-from incubator.runtime import BLUR_SIGMA, FORMAT, MEAN, PAD_VALUE, STD, VERSION, Bundle
+from incubator.runtime import BLUR_SIGMA, FORMAT, MEAN, PAD_VALUE, STD, STRIDE, VERSION, Bundle, rect_shape
 
 YOLO_CONF = 0.001     # 툴 채점과 같은 최소 신뢰도
 OPSET = 17
@@ -64,17 +64,31 @@ def _export_patchcore(model, out: Path) -> dict:
             "mean": MEAN.tolist(), "std": STD.tolist(), "blur_sigma": BLUR_SIGMA}
 
 
-def _export_yolo(model, out: Path, progress: Progress) -> dict:
+def _export_yolo(model, out: Path, image_hw, progress: Progress) -> dict:
+    """.pt 예측은 rect 레터박스를 쓴다 — ONNX 도 같은 고정 입력 크기로 내보내야 점수가 같다."""
     from ultralytics import YOLO
 
+    input_hw = rect_shape(image_hw, model.imgsz)
     names = []
     for k, w in enumerate(model.weights):
         progress(f"YOLO {k + 1}/{len(model.weights)}겹 ONNX 변환", 0.1 + 0.4 * k / len(model.weights))
-        onnx = YOLO(w).export(format="onnx", imgsz=model.imgsz, nms=True, conf=YOLO_CONF, verbose=False)
+        onnx = YOLO(w).export(format="onnx", imgsz=list(input_hw), nms=True, conf=YOLO_CONF, verbose=False)
         names.append(f"fold{k + 1}.onnx")
         shutil.move(onnx, out / names[-1])
-    return {"models": names, "imgsz": model.imgsz, "input": "images", "output": "output0",
+    return {"models": names, "imgsz": model.imgsz, "letterbox": "rect", "stride": STRIDE, "input_hw": list(input_hw),
+            "input": "images", "output": "output0",
             "conf": YOLO_CONF, "pad_value": PAD_VALUE, "combine": "max"}
+
+
+def _versions() -> dict:
+    from importlib.metadata import PackageNotFoundError, version
+    out = {}
+    for pkg in ("torch", "torchvision", "ultralytics", "onnx", "onnxruntime", "opencv-python"):
+        try:
+            out[pkg] = version(pkg)
+        except PackageNotFoundError:
+            pass
+    return out
 
 
 def export_bundle(res: AlgoResult, snap: Snapshot, threshold: float, metrics: Metrics, out_root,
@@ -98,11 +112,11 @@ def export_bundle(res: AlgoResult, snap: Snapshot, threshold: float, metrics: Me
         if res.name == "PatchCore":
             manifest |= _export_patchcore(res.model, out)
         else:
-            manifest |= _export_yolo(res.model, out, progress)
+            manifest |= _export_yolo(res.model, out, mask.shape, progress)
         (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
         interf, thresh, test = eval_items(ds, snap.split)
-        report = {"dataset": ds.name, "algorithm": res.name, "created": datetime.now().isoformat(timespec="seconds"),
+        report = {"dataset": ds.name, "versions": _versions(), "algorithm": res.name, "created": datetime.now().isoformat(timespec="seconds"),
                   "params": params if params is not None else getattr(res.model, "params", {}),
                   "threshold": float(threshold), "metrics": asdict(metrics),
                   "counts": {"train": len(snap.split.train), "thresh": len(thresh), "test": len(test),

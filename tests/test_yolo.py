@@ -77,3 +77,18 @@ def test_yolo_keeps_fold_weights(tmp_path):
     assert r.model.imgsz == FAST["imgsz"]
     r.discard()
     assert not os.path.exists(r.model.root)
+
+
+def test_sweep_stale_temp_removes_only_old_folders(tmp_path):
+    import time
+    from incubator.algorithms.yolo import MODEL_PREFIX, sweep_stale_temp
+    old = tmp_path / (MODEL_PREFIX + "old")
+    new = tmp_path / (TMP_PREFIX + "new")
+    other = tmp_path / "keep_me"
+    for d in (old, new, other):
+        d.mkdir()
+    past = time.time() - 2 * 86400
+    os.utime(old, (past, past))
+    os.utime(other, (past, past))
+    sweep_stale_temp(str(tmp_path))
+    assert not old.exists() and new.exists() and other.exists()

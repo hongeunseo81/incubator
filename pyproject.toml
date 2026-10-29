@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 # torch / torchvision 은 CUDA 빌드를 직접 설치한다 (README 참고)
 dependencies = [
     "PySide6",
-    "ultralytics",
+    "ultralytics==8.4.191",   # .pt 예측 레터박스(rect)와 ONNX 내보내기 입력이 버전마다 다를 수 있어 고정
     "opencv-python",
     "numpy",
     "scikit-learn",
