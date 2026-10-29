@@ -18,10 +18,14 @@ from incubator.ui.thumb_grid import ThumbGrid
 STEP_TITLES = ["① 알고리즘", "② 데이터 준비", "③ 실행·결과"]
 RUN = 2   # 마지막 단계: 왼쪽 파라미터 + 오른쪽 실행·결과
 DESCRIPTIONS = {
-    "PatchCore": "이상탐지 — 정상 이미지만으로 학습합니다. 처음 보는 이물도 잡습니다.\n필요: 정상/간섭 라벨 (박스는 선택, 그리면 위치 적중 계산)",
-    "YOLO": "검출기 — 간섭 박스로 학습합니다. 이물 위치를 박스로 알려줍니다.\n필요: 정상/간섭 라벨 + 간섭 박스 2장 이상",
+    "PatchCore": "이상탐지 — 정상 이미지만으로 학습해 정상과 다른 부분을 찾습니다. 처음 보는 이물도 잡을 수 있습니다.\n"
+                 "필요: 정상 이미지(학습) + 간섭 이미지(성능 확인)",
+    "YOLO": "검출기 — 간섭 박스와 정상 이미지로 학습해, 배운 것과 비슷한 이물을 박스로 찾습니다.\n"
+            "필요: 박스를 그린 간섭 이미지 2장 이상 + 정상 이미지",
 }
 TAB_H = 42                   # 단계 탭 높이
+TAB_BORDER = "#3d7fa8"       # 선택 안 된 탭 테두리
+TAB_BORDER_OFF = "#2a3d55"   # 아직 갈 수 없는 탭 테두리
 CARD_W, CARD_H = 440, 280   # 알고리즘 카드 크기
 VALUE_W = 460   # 데이터셋 콤보와 마스터 파일 경로 칸의 폭 (버튼 위치를 맞춘다)
 BAD_STYLE = f"color: {theme.ALERT}"
@@ -467,7 +471,7 @@ class Wizard(QWidget):
                          f"background: {theme.ACCENT}; color: {theme.BG}; }}")
             else:
                 style = (f"QPushButton {{ padding: 8px 26px; border-radius: 20px; font-size: 16px; background: {theme.PANEL}; "
-                         f"color: {theme.TEXT}; border: 1px solid {theme.GRID}; }} "
+                         f"color: {theme.TEXT}; border: 2px solid {TAB_BORDER}; }} "      # 선택 안 된 탭도 테두리로 보이게
                          f"QPushButton:hover {{ border-color: {theme.ACCENT}; }} "
-                         f"QPushButton:disabled {{ color: #3a4a5e; }}")
+                         f"QPushButton:disabled {{ color: #4a5a6e; border-color: {TAB_BORDER_OFF}; }}")
             b.setStyleSheet(style)
